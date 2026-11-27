@@ -1,0 +1,8 @@
+profile: source
+note: Ảnh Việt Nam người đã duyệt trong CVAT (import_yolo.py --order file). Polygon vẽ tay nên chặt hơn nguồn public.
+severity:
+  dup_within: error
+  self_intersect: error        # polygon vẽ tay sai thứ tự đỉnh
+  ped_in_vehicle: error        # guideline: không gán người trong xe
+thresholds:
+  max_sample_error: 0.15       # = ngưỡng trả task của labeling_sop.md §6

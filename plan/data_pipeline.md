@@ -17,11 +17,13 @@ hackathon_vin_t66/
 │   ├── dedup.py               # loại ảnh trùng/gần trùng (phash)
 │   ├── pseudo_label.py        # gán nháp bằng teacher / COCO model / SAM 3
 │   ├── cvat_io.py             # đẩy nhãn nháp vào CVAT, lấy nhãn đã duyệt về
-│   ├── qa_check.py            # kiểm tra nhãn tự động
+│   ├── qa_check.py            # cổng chất lượng L0–L5, chạy theo profile source / gold / merged
+│   ├── label_audit.py         # QA tầng L6: mô hình soi nhãn sót / sai lớp / lệch biên
 │   ├── visualize.py           # vẽ mask lên ảnh để xem bằng mắt
 │   └── build_dataset.py       # recipe → zip + manifest
 ├── configs/
-│   └── recipes/merged_v1.yaml ...
+│   ├── recipes/merged_v1.yaml ...
+│   └── qa/<nguồn>.yaml        # kỳ vọng của từng nguồn cho qa_check --expect
 └── data/                      # .gitignore, dữ liệu thật nằm trên Drive
 ```
 
@@ -103,7 +105,7 @@ Loại ảnh nếu một trong các điều kiện sau đúng:
 | **COCO** | `instances_train2017.json` | Chỉ lấy ảnh có ≥ 3 đối tượng thuộc nhóm giao thông và không có lớp ngoài trời bất thường; COCO thiếu nhãn biển báo (chỉ có `stop sign`) → **bắt buộc** gán nháp lớp Sign bằng teacher trước khi đưa vào, nếu không thì chỉ lấy ảnh không thấy biển báo |
 | **Roboflow** | Xuất định dạng YOLOv8 segmentation | Đọc `data.yaml` của bộ đó để ánh xạ id; xem 30 ảnh để kiểm tra quy ước Motorcyclist |
 
-**Cổng chất lượng mỗi nguồn (bắt buộc trước khi gộp):** chạy `qa_check.py` + `visualize.py` 30 ảnh ngẫu nhiên → người phụ trách và Lộc cùng xem → ghi “ĐẠT/KHÔNG ĐẠT” vào `experiment_log.md`.
+**Cổng chất lượng mỗi nguồn (bắt buộc trước khi gộp):** `qa_check.py --expect configs/qa/<nguồn>.yaml --render` → người phụ trách và Lộc chấm 30 ảnh trong `qa/sample.csv` → chạy lại tới khi kết luận `PASS` → chép dòng log mà lệnh in ra vào `experiment_log.md`. Chi tiết: [`qa_process.md`](qa_process.md).
 
 ## 5. Chọn ảnh có ưu tiên
 
@@ -172,17 +174,15 @@ exclude_near_duplicates_of_val: true
 
 Lưu ý: ảnh nhân bản (`repeat: 2`) đặt tên `..._r1.jpg`; Bước 2 của notebook sẽ báo “ảnh trùng trong train”, đây là chủ ý, chỉ cần chắc chắn **không** có rò rỉ train/val.
 
-## 8. `qa_check.py`: kiểm tra tự động
+## 8. QA dữ liệu
 
-| Kiểm tra | Mức |
-|---|---|
-| id lớp ngoài 0–10, < 3 điểm, tọa độ ngoài [0, 1] | Lỗi (dừng) |
-| Hai instance chồng nhau > 2% diện tích nhỏ hơn | Lỗi |
-| Instance dưới ngưỡng kích thước | Cảnh báo (tự loại) |
-| Polygon tự cắt / diện tích 0 | Lỗi |
-| Ảnh > 100 instance | Cảnh báo |
-| Ảnh train gần trùng ảnh val | Lỗi |
-| Phân phối lớp: lớp < 400 instance trong train | Cảnh báo, báo Lộc |
-| Motorcyclist có mask chỉ là người (tỉ lệ cao/rộng bất thường, không có phần bánh xe ở đáy) | Cảnh báo, đưa vào danh sách xem |
+Quy trình đầy đủ (ba cổng, chấm mẫu, xử lý FAIL, miễn trừ, mô hình soi nhãn, bảng mã kiểm tra): **[`qa_process.md`](qa_process.md)**.
+
+Tóm tắt kỹ thuật:
+
+- `tools/qa_check.py` là **một** bộ kiểm tra (tầng L0 cấu trúc, L1 nhãn, L2 phân phối, L3 trùng/rò rỉ, L4 manifest/zip, L5 mẫu người xem), chạy theo profile `source` (từng nguồn), `gold` (gold val), `merged` (bộ gộp, tự nhận khi có `images/train`).
+- File kỳ vọng `configs/qa/<nguồn>.yaml` khai báo lớp được vắng, số instance tối thiểu, đổi mức kiểm tra, miễn trừ có lý do.
+- Kết luận `FAIL` / `PASS_AUTO` / `PASS`; kết quả trong `<dataset>/qa/` (`report.json`, `sample.csv`, `preview/`, `audit/`).
+- `tools/label_audit.py` (L6) so dự đoán mô hình với nhãn để tìm sót nhãn, sai lớp, biên lệch, nhãn thừa.
 
 Bước 2 của notebook là lớp kiểm tra thứ hai, không thay thế `qa_check.py`.

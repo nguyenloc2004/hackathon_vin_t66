@@ -1,0 +1,7 @@
+profile: gold
+note: Gold val Việt Nam (Bình Anh). Khóa sau G2. Luôn chạy kèm --against <ảnh train Việt Nam> để chắc không rò rỉ.
+classes: {}                    # mặc định mỗi lớp target 15 instance (labeling_sop.md §3)
+thresholds:
+  min_night_frac: 0.15         # mục tiêu 20% ảnh đêm
+  max_sample_error: 0.05       # gold val là thước đo: gần như không được có lỗi
+  sample_random: 20
