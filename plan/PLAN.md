@@ -6,6 +6,8 @@ Tài liệu này là bản kế hoạch chính. Các tài liệu chi tiết:
 
 | File | Nội dung | Ai đọc kỹ |
 |---|---|---|
+| [`milestones.md`](milestones.md) | 13 milestone M0–M12 (gắn cổng G0–G5), tiêu chí xong, chỉ số theo dõi | Lộc (theo dõi), cả đội |
+| [`assignments.md`](assignments.md) | Bảng việc từng người có mã việc, hạn, trạng thái; bảng tổng quan cho leader | Cả đội (tự cập nhật) |
 | [`schedule.md`](schedule.md) | Lịch theo giờ cho từng người, ca ngủ, họp nhanh | Cả đội |
 | [`data_pipeline.md`](data_pipeline.md) | Đặc tả kỹ thuật: converter, ghép rider, raster/polygon, lọc, gộp, gán nhãn nháp | Lộc, Thắng, Long, Đạt |
 | [`class_mapping.md`](class_mapping.md) | Ánh xạ nhãn từng public dataset về 11 lớp | Thắng, Long |
