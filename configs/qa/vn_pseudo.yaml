@@ -1,0 +1,6 @@
+profile: source
+note: Ảnh Việt Nam gán nháp, chỉ phần confident.txt (Đạt). Phải đã qua dedup.py.
+severity:
+  dup_within: error            # khung gần trùng phải được dedup.py bỏ trước
+thresholds:
+  max_background_frac: 0.05

@@ -1,0 +1,5 @@
+profile: source
+note: Mapillary Vistas v2 (Thắng). Có đủ 11 lớp; ảnh rất đa dạng, ít xe máy kiểu Việt Nam.
+classes:
+  Motorcyclist: {min: 100}     # converter ghép rider sai thì lớp này tụt mạnh: chặn sớm
+  Cyclist: {min: 50}

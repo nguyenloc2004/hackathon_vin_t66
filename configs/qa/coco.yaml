@@ -1,0 +1,3 @@
+profile: source
+note: COCO 2017 đường phố, CHƯA gán bù biển báo. Không được đưa thẳng vào recipe; dùng coco_filled.yaml sau bước pseudo_label --fill-classes.
+absent_ok: [Other vehicle, Sign]

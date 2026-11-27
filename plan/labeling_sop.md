@@ -60,11 +60,12 @@
 |---|---|---|
 | Duyệt chéo toàn bộ gold val | 100% | Người thứ hai |
 | Kiểm tra ngẫu nhiên ảnh duyệt nhanh | 10% mỗi task | Bình Anh |
-| `qa_check.py` trên mỗi lô xuất từ CVAT | Mỗi lô | Người xuất |
+| `qa_check.py --expect configs/qa/vn_reviewed.yaml` trên mỗi lô xuất từ CVAT (gold: `gold_val.yaml --against ...`) | Mỗi lô | Người xuất |
+| `label_audit.py` (teacher soi gold val + ảnh đã duyệt), nghi vấn quay lại hàng duyệt | Khi có teacher, rồi mỗi lô lớn | Hưng chạy, Bình Anh phân việc |
 | Đo **tỉ lệ ảnh có lỗi** trong mẫu kiểm tra | Mỗi task | Bình Anh ghi lại |
 | Họp hiệu chỉnh (calibration) 10 phút: cả đội cùng gán 3 ảnh khó, so sánh | 13:00 và 19:30 | Bình Anh chủ trì |
 
-Ngưỡng: task có **> 15% ảnh lỗi** trong mẫu kiểm tra → trả lại người gán sửa toàn bộ task.
+Ngưỡng: task có **> 15% ảnh lỗi** trong mẫu kiểm tra → trả lại người gán sửa toàn bộ task. Mẫu kiểm tra 10% có thể lấy từ `qa/sample.csv` (cột `verdict`) để `qa_check` tự tính tỉ lệ này; gold val dùng ngưỡng 5%.
 
 **Số liệu cần ghi cho slide**: số ảnh đã duyệt, thời gian trung bình/ảnh, tỉ lệ nhãn nháp bị sửa (thêm/xóa/đổi lớp/sửa biên), tỉ lệ lỗi trong kiểm tra chéo.
 
