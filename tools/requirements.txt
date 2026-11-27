@@ -1,0 +1,9 @@
+numpy>=1.26
+opencv-python>=4.9
+scipy>=1.11
+pyyaml>=6.0
+pillow>=10.0
+# chỉ cần cho pseudo_label.py (chạy trên GPU, cùng phiên bản với notebook của cuộc thi)
+# ultralytics==8.4.214
+# tải video YouTube
+# yt-dlp
