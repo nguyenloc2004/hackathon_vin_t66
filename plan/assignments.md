@@ -71,8 +71,8 @@ Cập nhật tại mỗi buổi họp nhanh (`12:00 · 15:00 · 18:00 · 21:00 �
 |---|---|---|---|---|---|---|
 | LONG-01 | Đăng ký IDD, Cityscapes; tải COCO 2017 annotations + ảnh train | 11:45 27/11 | Đã gửi đăng ký; COCO trên máy | M0 | ⬜ | |
 | LONG-02 | `convert_coco.py --max-images 1500`, `qa_check`, xem 30 ảnh | 14:00 | `converted/coco`; ghi nhớ **bắt buộc** gán bù Sign trước khi gộp | M2 | ⬜ | |
-| LONG-03 | Converter IDD (nếu đã có quyền) | 15:30 | Output + đọc kỹ bảng nhãn gốc → role | M3 | ⬜ | |
-| LONG-04 | IDD toàn bộ + thống kê; Roboflow xem nhanh (kiểm tra quy ước Motorcyclist) | 18:00 | `converted/idd` + `stats.json`; ghi ĐẠT/KHÔNG ĐẠT | M4 | ⬜ | |
+| LONG-03 | Converter IDD (nếu đã có quyền) | 15:30 | Output + đọc kỹ bảng nhãn gốc → role | M3 | ✅ | 14:25 27/11 · `convert_idd.py` chạy xong (fix `polegroup`, lọc polygon `<1.5 px²`) |
+| LONG-04 | IDD toàn bộ + thống kê; Roboflow xem nhanh (kiểm tra quy ước Motorcyclist) | 18:00 | `converted/idd` + `stats.json`; ghi ĐẠT/KHÔNG ĐẠT | M4 | 🔄 | Xong IDD (`5.006` ảnh, `54.367` inst, ĐẠT); còn xem nhanh Roboflow |
 | LONG-05 | Tìm + tải video **đêm / mưa**, trích khung, đưa vào gán nháp | 21:00 | Khung trong `vn_raw/`, ghi nguồn vào `vn_sources.csv` | M5 | ⬜ | |
 | LONG-09 | 🔁 Duyệt ảnh Việt Nam | 00:30 28/11 | Số ảnh đã duyệt báo Bình Anh | M7 | ⬜ | |
 | LONG-06 | Trực ca 03:00–06:30 cùng Thắng | 06:30 | Log trực ca | M9 | ⬜ | |
