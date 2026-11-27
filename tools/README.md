@@ -87,7 +87,7 @@ python tools/import_yolo.py --src D:/data/cvat_exports/review_01 --out D:/data/c
 Một công cụ, ba profile (`source` / `gold` / `merged`). Quy trình đầy đủ (ai chạy, khi nào, chấm mẫu, xử lý FAIL) và bảng mã kiểm tra: [`plan/qa_process.md`](../plan/qa_process.md).
 
 ```bash
-# nguồn: kiểm tra tự động + tạo mẫu 30 ảnh phân tầng (qa/sample.csv) + vẽ ra qa/preview/
+# nguồn: kiểm tra tự động + tạo mẫu phân tầng ~70–90 ảnh (qa/sample.csv) + vẽ ra qa/preview/
 python tools/qa_check.py --data D:/data/converted/vistas --expect configs/qa/vistas.yaml --render
 #   -> mở qa/preview/, điền cột verdict (ok/bad) và error_type (sot/sai_lop/bien/rider/khac) trong qa/sample.csv
 python tools/qa_check.py --data D:/data/converted/vistas --expect configs/qa/vistas.yaml   # chạy lại -> PASS / FAIL
@@ -124,6 +124,7 @@ python tools/viewer/server.py --data D:/data/converted/vistas D:/data/gold_val/g
 - Xem ảnh + mask từng instance (zoom, kéo, bật/tắt từng lớp, xem đỉnh polygon), bảng instance có kích thước bbox và % diện tích.
 - Lọc theo split, lớp, ảnh nền, **mã QA** (đọc `qa/flags.json`), **mẫu người xem** (chưa chấm / ok / bad), **nghi vấn L6** (`qa/audit/`). Vật bị cờ có viền đứt nét đỏ (lỗi) / vàng (cảnh báo).
 - **Chấm mẫu ngay trên viewer**: ảnh trong `qa/sample.csv` có khung chấm bên phải; phím `O` = ok rồi sang ảnh chưa chấm kế tiếp, `B` = bad (chọn loại lỗi), `N` = ảnh chưa chấm kế tiếp. Lưu thẳng vào `qa/sample.csv`. Chấm xong chạy lại `qa_check.py` để ra kết luận.
+- **Ảnh gốc**: phím `H` ẩn mọi lớp phủ; ô "Viền mask" tắt riêng viền. Lựa chọn hiển thị được nhớ giữa các lần mở.
 - Link `http://localhost:8000/#ds=<id>&k=<split>/<tên ảnh>` mở thẳng một ảnh (tiện báo nhau trong kênh đội; mỗi người chạy server trên máy mình).
 - Cần `qa_check.py` bản có `qa/flags.json` (chạy lại nếu bộ đã chạy QA từ trước). Viewer chỉ nghe ở `127.0.0.1`; đóng file `sample.csv` trong Excel trước khi chấm trên viewer.
 

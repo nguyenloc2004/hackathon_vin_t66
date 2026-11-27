@@ -122,9 +122,10 @@ DEFAULTS = {
     "min_night_frac": 0.10,       # gold val mục tiêu 20% ảnh đêm (labeling_sop.md §3)
     "night_brightness": 60,       # độ sáng trung bình < 60 = ảnh đêm (giống pseudo_label.py)
     "max_sample_error": 0.10,     # > 10% ảnh lỗi trong mẫu người xem = không đạt
-    "sample_random": 10,
-    "sample_rare": 10,
-    "sample_flagged": 10,
+    "sample_random": 30,          # mẫu người xem: ảnh ngẫu nhiên (ước lượng tỉ lệ lỗi chung)
+    "sample_rare": 20,            # ảnh có Bus / Other vehicle / Bicycle / Cyclist / Motorcyclist
+    "sample_flagged": 40,         # ảnh bị cờ QA, tổng tối đa
+    "sample_per_flag": 3,         # ... và tối đa bấy nhiêu ảnh cho mỗi mã cờ
 }
 
 # mục tiêu số instance mỗi lớp (plan/PLAN.md §2): train >= 1.000 (Cyclist, Other vehicle >= 400), val >= 15
@@ -465,46 +466,59 @@ def check_converter_stats(root, split_stats, issues, th):
 
 
 # ------------------------------------------------------------------------------------------------ L5: mẫu người xem
-def build_sample(records, issues, levels, th, seed):
-    """Mẫu phân tầng: ngẫu nhiên + có lớp hiếm/rider + bị cảnh báo (xoay vòng qua các mã để đa dạng)."""
-    rng = random.Random(seed)
-    chosen, rows = set(), []
+def sample_group(reason):
+    return "flag" if str(reason).startswith("flag:") else str(reason)
 
-    def take(pool, n, reason):
-        for r in pool:
-            if n <= 0:
-                break
-            if r["key"] not in chosen:
-                chosen.add(r["key"])
-                rows.append({"key": r["key"], "split": r["split"], "stem": r["stem"], "reason": reason})
-                n -= 1
+
+def build_sample(records, issues, levels, th, seed, existing=()):
+    """Mẫu phân tầng: ảnh bị cờ (xoay vòng qua các mã, mỗi mã <= sample_per_flag) + lớp hiếm/rider + ngẫu nhiên.
+
+    Có mẫu cũ (`existing`) thì chỉ trả về các ảnh BỔ SUNG cho đủ chỉ tiêu từng nhóm; dòng cũ và verdict giữ nguyên.
+    """
+    rng = random.Random(seed)
+    chosen = {r.get("key") for r in existing}
+    have = Counter(sample_group(r.get("reason", "")) for r in existing)
+    per_code = Counter(str(r.get("reason", ""))[5:] for r in existing if sample_group(r.get("reason", "")) == "flag")
+    rows = []
+
+    def add(r, reason):
+        chosen.add(r["key"])
+        rows.append({"key": r["key"], "split": r["split"], "stem": r["stem"], "reason": reason})
 
     pool = [r for r in records if not r["repeat"]]
     by_code = defaultdict(list)
     for r in pool:
         for code in sorted(issues.by_image.get(r["key"], ())):
-            if levels.get(code) in (E, W):
+            if levels.get(code) in (E, W) and not code.startswith("human_audit"):
                 by_code[code].append(r)
-    flagged = []
-    for code in by_code:
+    for code in sorted(by_code):
         rng.shuffle(by_code[code])
-    while any(by_code.values()) and len(flagged) < 4 * th["sample_flagged"]:
+    budget = th["sample_flagged"] - have["flag"]
+    progress = True
+    while budget > 0 and progress:          # xoay vòng: mỗi vòng thêm tối đa 1 ảnh cho mỗi mã
+        progress = False
         for code in sorted(by_code):
-            if by_code[code]:
-                flagged.append((code, by_code[code].pop()))
-    n = th["sample_flagged"]
-    for code, r in flagged:
-        if n <= 0:
-            break
-        if r["key"] not in chosen:
-            take([r], 1, f"flag:{code}")
-            n -= 1
-    rare = [r for r in pool if r["classes"] & (C.RARE_CLASSES | {5})]
-    rng.shuffle(rare)
-    take(rare, th["sample_rare"], "rare")
-    rnd = list(pool)
-    rng.shuffle(rnd)
-    take(rnd, th["sample_random"], "random")
+            if budget <= 0:
+                break
+            if per_code[code] >= th["sample_per_flag"]:
+                continue
+            while by_code[code]:
+                r = by_code[code].pop()
+                if r["key"] not in chosen:
+                    add(r, f"flag:{code}")
+                    per_code[code] += 1
+                    budget -= 1
+                    progress = True
+                    break
+    for group, cand in (("rare", [r for r in pool if r["classes"] & (C.RARE_CLASSES | {5})]), ("random", list(pool))):
+        rng.shuffle(cand)
+        n = th[f"sample_{group}"] - have[group]
+        for r in cand:
+            if n <= 0:
+                break
+            if r["key"] not in chosen:
+                add(r, group)
+                n -= 1
     return rows
 
 
@@ -518,6 +532,18 @@ def backup_verdicts(path):
     dst = path.with_name(f"sample.{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
     shutil.copyfile(path, dst)
     print(f"Đã lưu bản mẫu đã chấm cũ -> {dst}")
+
+
+def write_sample(path, rows):
+    fields = SAMPLE_COLUMNS + [k for r in rows for k in r if k not in SAMPLE_COLUMNS]
+    fields = list(dict.fromkeys(fields))
+    tmp = path.with_suffix(".csv.tmp")
+    with open(tmp, "w", newline="", encoding="utf-8-sig") as fh:  # utf-8-sig: Excel mở đúng tiếng Việt
+        wr = csv.DictWriter(fh, fieldnames=fields)
+        wr.writeheader()
+        for r in rows:
+            wr.writerow({**{k: "" for k in fields}, **{k: (v or "") for k, v in r.items() if k in fields}})
+    tmp.replace(path)
 
 
 def norm_verdict(v):
@@ -540,13 +566,15 @@ def human_audit(root, records, issues, levels, th, seed, resample, render):
     if rows is None:
         backup_verdicts(path)
         rows = build_sample(records, issues, levels, th, seed)
-        with open(path, "w", newline="", encoding="utf-8-sig") as fh:  # utf-8-sig: Excel mở đúng tiếng Việt
-            wr = csv.DictWriter(fh, fieldnames=SAMPLE_COLUMNS)
-            wr.writeheader()
-            for r in rows:
-                wr.writerow({**{k: "" for k in SAMPLE_COLUMNS}, **r})
+        write_sample(path, rows)
         print(f"Đã tạo mẫu người xem {path} ({len(rows)} ảnh): điền cột verdict = ok/bad, "
-              f"error_type = sot|sai_lop|bien|rider|khac, rồi chạy lại lệnh này.")
+              f"error_type = sot|sai_lop|bien|rider|khac (hoặc chấm trên tools/viewer), rồi chạy lại lệnh này.")
+    else:
+        extra = build_sample(records, issues, levels, th, seed, existing=rows)
+        if extra:
+            rows = rows + [{**{k: "" for k in SAMPLE_COLUMNS}, **r} for r in extra]
+            write_sample(path, rows)
+            print(f"Đã bổ sung {len(extra)} ảnh vào mẫu người xem ({len(rows)} ảnh; verdict cũ giữ nguyên): {path}")
     if render:
         render_sample(root, rows, records)
     verdicts = [norm_verdict(r.get("verdict")) for r in rows]
@@ -555,7 +583,14 @@ def human_audit(root, records, issues, levels, th, seed, resample, render):
     result = {"sample_size": len(rows), "ok": n_ok, "bad": n_bad, "pending": pending,
               "error_rate": round(n_bad / (n_ok + n_bad), 4) if n_ok + n_bad else None,
               "error_types": dict(Counter((r.get("error_type") or "?").strip() for r, v in zip(rows, verdicts)
-                                          if v == "bad"))}
+                                          if v == "bad")),
+              "by_group": {}}
+    for g in ("random", "rare", "flag"):
+        vs = [v for r, v in zip(rows, verdicts) if sample_group(r.get("reason", "")) == g]
+        if vs:
+            ok_, bad_ = vs.count("ok"), vs.count("bad")
+            result["by_group"][g] = {"n": len(vs), "ok": ok_, "bad": bad_,
+                                     "error_rate": round(bad_ / (ok_ + bad_), 4) if ok_ + bad_ else None}
     if pending:
         issues.add("human_audit_pending", f"{pending}/{len(rows)} ảnh chưa chấm ({path.name})")
     elif rows and result["error_rate"] > th["max_sample_error"]:
@@ -802,6 +837,9 @@ def print_report(r, show):
                  "mẫu rỗng" if not a["sample_size"] else
                  f"đã chấm {a['ok'] + a['bad']}/{a['sample_size']} ({a['bad']} lỗi)" if a["pending"] else
                  f"{a['bad']}/{a['sample_size']} lỗi ({a['error_rate']:.0%})")
+    if a and a.get("by_group"):
+        print("Mẫu người xem theo nhóm: " + " · ".join(
+            f"{g} {v['bad']} bad / {v['ok'] + v['bad']} đã chấm / {v['n']}" for g, v in a["by_group"].items()))
     print(f"\nBáo cáo: {Path(r['data']) / QA_DIR / 'report.json'}")
     print(f"KẾT LUẬN: {r['verdict']}  ({r['errors']} lỗi, {r['warnings']} cảnh báo; mẫu người xem: {audit_txt})")
     n_img = sum(s["images"] for s in r["splits"].values())

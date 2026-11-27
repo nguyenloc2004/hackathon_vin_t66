@@ -24,7 +24,79 @@ Công cụ: [`tools/qa_check.py`](../tools/qa_check.py) (tầng L0–L5), [`tool
 
 ---
 
-## 2. Ba cổng và lịch chạy
+## 2. Sáu bước cho một bộ dữ liệu
+
+Áp dụng cho mọi bộ (một nguồn, một lô CVAT, gold val, bộ gộp). Chỉ khác nhau ở file `--expect` và người làm (mục 3).
+
+```
+ ① Chạy QA  ──►  ② Mở viewer: xem cờ + chấm mẫu        ──►  ③ Sửa lỗi (ngoài viewer)
+                                                                   │
+ ⑥ Dùng để dựng bộ train  ◄──  ⑤ Ghi log + báo Lộc  ◄──  ④ Chạy lại QA ── FAIL? quay lại ③
+```
+
+### Bước 1. Chạy QA
+
+```bash
+python tools/qa_check.py --data <dataset> --expect configs/qa/<nguồn>.yaml
+```
+
+Lệnh tạo ra hai thứ cần xử lý: **các cờ** (lỗi và cảnh báo) và **mẫu ~70–90 ảnh** cần người chấm (`qa/sample.csv`, mục 7). Kết quả nằm trong `<dataset>/qa/` (mục 4.2).
+
+### Bước 2. Mở viewer, làm hai việc riêng biệt
+
+```bash
+python tools/viewer/server.py --data <dataset>      # mở http://localhost:8000
+```
+
+Viewer **không sửa nhãn**. Nó chỉ cho xem ảnh bị cờ và ghi kết quả chấm mẫu. Phím `H` ẩn mọi lớp phủ để nhìn rõ ảnh gốc.
+
+**Việc A: xem các ảnh bị cờ.** Lọc "Cờ QA". Vật bị cờ có viền đứt nét.
+
+| Loại cờ | Làm gì |
+|---|---|
+| **Lỗi** (viền đỏ) | Bắt buộc xử lý ở bước 3 |
+| **Cảnh báo** (viền vàng) | Xem vài ảnh mỗi mã. Đa số là bình thường (ví dụ `multipart_overlap`, hoặc `ped_in_vehicle` mà thực ra là công nhân đứng ở đuôi xe rác). Nếu một kiểu sai lặp lại nhiều lần thì báo người phụ trách converter |
+
+**Việc B: chấm mẫu** (~70–90 ảnh, khoảng 15–20 phút với phím tắt). Lọc "Mẫu người xem: chưa chấm", bấm `O` (ok) hoặc `B` (bad, chọn loại lỗi) cho từng ảnh. Viewer lưu thẳng vào `qa/sample.csv`. Cách chấm, các loại lỗi và ngưỡng: mục 7.
+
+### Bước 3. Sửa lỗi (làm ngoài viewer)
+
+| Tình huống | Cách sửa |
+|---|---|
+| Vài dòng nhãn hỏng lẻ tẻ (ví dụ 2 polygon diện tích ~0 của Vistas) | Mở `labels/<ảnh>.txt`, xóa dòng đó (viewer hiện số dòng), **hoặc** ghi miễn trừ có lý do vào `configs/qa/<nguồn>.yaml` (mục 8) |
+| Nhãn do người duyệt sai | Sửa trong CVAT, xuất lô, import lại bằng `import_yolo.py` |
+| Cùng một kiểu sai lặp nhiều lần, hoặc nhiều ảnh `bad` trong mẫu | Lỗi ở converter hoặc quy ước: sửa công cụ, chuyển đổi lại cả nguồn, rồi chạy QA với `--resample` để lấy mẫu mới |
+
+Bảng xử lý theo từng mã: mục 8. Không có lỗi nào thì bỏ qua bước này.
+
+### Bước 4. Chạy lại QA để ra kết luận
+
+```bash
+python tools/qa_check.py --data <dataset> --expect configs/qa/<nguồn>.yaml --archive reports/qa
+```
+
+Lần chạy này đọc verdict trong `sample.csv` và kiểm lại các lỗi:
+
+- **`FAIL`**: còn lỗi, hoặc tỉ lệ `bad` trong mẫu vượt ngưỡng (> 10% với nguồn thường). Quay lại bước 3.
+- **`PASS_AUTO`**: hết lỗi nhưng mẫu chưa chấm đủ. Quay lại bước 2, việc B.
+- **`PASS`**: bộ dữ liệu đạt.
+
+### Bước 5. Ghi lại và báo
+
+- Chép dòng `Dòng cho experiment_log.md` mà lệnh in ra vào bảng **Cổng chất lượng** của [`experiment_log.md`](experiment_log.md).
+- Commit `reports/qa/<dataset>.json`, kèm file kỳ vọng nếu có ghi miễn trừ.
+- Báo Lộc ở kênh đội: tên bộ, kết luận, 1–2 vấn đề lớn nhất.
+- Sao lưu thư mục `<dataset>/qa/` (có `sample.csv` đã chấm) trước khi ai đó xóa hoặc chuyển đổi lại bộ này.
+
+### Bước 6. Dùng để dựng bộ train
+
+Lộc đưa nguồn vào recipe, chạy `build_dataset.py`, rồi chạy QA thêm một lần trên **bộ gộp** (cổng C, mục 6). Bước này kiểm tra rò rỉ train/val, manifest và zip. Bộ gộp đạt `PASS` thì zip mới được đưa lên Kaggle.
+
+> **Ví dụ IDD (27/11):** QA ra `PASS_AUTO`, 0 lỗi. Bỏ qua bước 3: chỉ cần mở viewer chấm mẫu (bước 2B), chạy lại QA (bước 4). Tỉ lệ `bad` dưới 10% thì IDD lên `PASS`.
+
+---
+
+## 3. Ba cổng và lịch chạy
 
 | Cổng | Profile | Dữ liệu | Khi nào (gắn milestone) | Người chạy | Người chấm mẫu | Người chốt |
 |---|---|---|---|---|---|---|
@@ -38,24 +110,17 @@ Không có bộ dữ liệu nào được dùng để huấn luyện nếu chưa
 
 ---
 
-## 3. Cổng A: từng nguồn
+## 4. Cổng A: từng nguồn
 
-### 3.1 Các bước
+### 4.1 Các bước
+
+Làm đúng sáu bước ở [mục 2](#2-sáu-bước-cho-một-bộ-dữ-liệu), với `--expect configs/qa/<nguồn>.yaml`, ví dụ:
 
 ```bash
-# 1) kiểm tra tự động + tạo mẫu 30 ảnh + vẽ ảnh mẫu
-python tools/qa_check.py --data D:/data/converted/vistas --expect configs/qa/vistas.yaml --render
-
-# 2) mở D:/data/converted/vistas/qa/preview/, chấm vào qa/sample.csv (mục 6)
-
-# 3) chạy lại cùng lệnh: đọc kết luận, lưu bản sao báo cáo vào repo
-python tools/qa_check.py --data D:/data/converted/vistas --expect configs/qa/vistas.yaml --archive reports/qa
+python tools/qa_check.py --data D:/data/converted/vistas --expect configs/qa/vistas.yaml
 ```
 
-4. Chép dòng `Dòng cho experiment_log.md` mà lệnh in ra vào bảng **Cổng chất lượng** của [`experiment_log.md`](experiment_log.md).
-5. Báo Lộc ở kênh đội: tên nguồn, kết luận, 1–2 vấn đề lớn nhất.
-
-### 3.2 Đọc báo cáo
+### 4.2 Đọc báo cáo
 
 Kết quả nằm trong `<dataset>/qa/`:
 
@@ -72,7 +137,7 @@ Mỗi dòng in ra có dạng `[LỖI][L1] overlap_partial: 3` kèm ví dụ `all
 python tools/visualize.py --data D:/data/converted/vistas --stems vistas_abc --out D:/tmp/xem
 ```
 
-### 3.3 Đọc các cảnh báo đặc trưng của nguồn public
+### 4.3 Đọc các cảnh báo đặc trưng của nguồn public
 
 Kinh nghiệm từ lần chạy đầu trên Vistas val và IDD train:
 
@@ -83,7 +148,7 @@ Kinh nghiệm từ lần chạy đầu trên Vistas val và IDD train:
 
 ---
 
-## 4. Cổng B: gold val
+## 5. Cổng B: gold val
 
 Gold val là thước đo của mọi quyết định, nên chặt nhất.
 
@@ -106,7 +171,7 @@ python tools/qa_check.py --data D:/data/gold_val/gold_val_v1 --expect configs/qa
 
 ---
 
-## 5. Cổng C: bộ gộp
+## 6. Cổng C: bộ gộp
 
 ```bash
 python tools/build_dataset.py --recipe configs/recipes/merged_v2.yaml
@@ -128,15 +193,20 @@ Mẫu người xem ở cổng này chỉ cần lướt 20 ảnh để bắt lỗ
 
 ---
 
-## 6. Chấm mẫu người xem (tầng L5)
+## 7. Chấm mẫu người xem (tầng L5)
 
-Lần chạy đầu tạo `qa/sample.csv`. Mẫu có 30 ảnh (gold val: 40) chia ba nhóm. Seed 71 nên ai chạy cũng ra cùng mẫu.
+Lần chạy đầu tạo `qa/sample.csv`, khoảng 70–90 ảnh chia ba nhóm, không trùng nhau. Seed 71 nên ai chạy cũng ra cùng mẫu.
 
-| Nhóm (cột `reason`) | Số ảnh | Mục đích |
+| Nhóm (cột `reason`) | Số ảnh (mặc định) | Mục đích |
 |---|---|---|
-| `flag:<mã>` | 10 | Ảnh bị cảnh báo, xoay vòng qua các mã: xác nhận cảnh báo là thật hay nhiễu |
-| `rare` | 10 | Ảnh có Bus, Other vehicle, Bicycle, Cyclist hoặc Motorcyclist: nơi converter hay sai nhất |
-| `random` | 10 | Ước lượng tỉ lệ lỗi chung của nguồn |
+| `flag:<mã>` | Mỗi mã cờ tối đa **3** ảnh, tổng tối đa **40** | Ảnh bị cờ QA (lỗi hoặc cảnh báo), xoay vòng qua các mã: xác nhận cờ là lỗi thật hay nhiễu |
+| `rare` | **20** | Ảnh có Bus, Other vehicle, Bicycle, Cyclist hoặc Motorcyclist: nơi converter hay sai nhất |
+| `random` | **30** (gold val: **40**) | Ước lượng tỉ lệ lỗi chung của bộ |
+
+- **Không phải ảnh bị cờ nào cũng vào mẫu.** Mẫu chỉ lấy vài ảnh mỗi mã để biết mã đó là lỗi thật hay nhiễu. Muốn xem hết ảnh của một mã thì lọc theo mã trên viewer (bước 2A). Ảnh có **lỗi** (viền đỏ) thì luôn phải xử lý ở bước 3, dù có trong mẫu hay không.
+- Đổi số lượng cho một nguồn bằng khoá `thresholds` trong file kỳ vọng: `sample_random`, `sample_rare`, `sample_flagged`, `sample_per_flag`.
+- Tăng số lượng (hoặc QA phát hiện mã cờ mới) thì lần chạy sau **tự bổ sung** ảnh cho đủ chỉ tiêu; các dòng và verdict đã chấm giữ nguyên.
+- Báo cáo in tỉ lệ `bad` riêng cho từng nhóm (`human_audit.by_group` trong `report.json`). Nhóm `flag` và `rare` thường có tỉ lệ lỗi cao hơn `random` vì cố ý chọn ảnh khó.
 
 **Cách chấm.** Cách nhanh nhất là dùng viewer: `python tools/viewer/server.py --data <dataset>`, lọc "Mẫu người xem: chưa chấm", chấm bằng phím `O` / `B`, kết quả lưu thẳng vào `qa/sample.csv` ([`tools/README.md`](../tools/README.md), mục viewer). Viewer còn tô viền các vật bị cờ, nên kiểm tra cảnh báo nhanh hơn. Cách thủ công: mở `qa/preview/` cạnh file CSV (Excel mở được vì file có BOM).
 
@@ -156,15 +226,15 @@ Lần chạy đầu tạo `qa/sample.csv`. Mẫu có 30 ảnh (gold val: 40) chi
 
    | Dữ liệu | Ngưỡng |
    |---|---|
-   | Nguồn public, Việt Nam nháp | 10% (3/30) |
+   | Nguồn public, Việt Nam nháp | 10% |
    | Lô duyệt CVAT | 15% (= ngưỡng trả task của SOP) |
-   | Gold val | 5% (2/40) |
+   | Gold val | 5% |
 
 Không chấm sau 02:00 (giống quy tắc duyệt nhãn). Sau khi sửa dữ liệu, chạy với `--resample` để lấy mẫu mới. Bản đã chấm cũ được tự lưu thành `qa/sample.<giờ>.csv`.
 
 ---
 
-## 7. Khi kết luận là FAIL
+## 8. Khi kết luận là FAIL
 
 | Loại lỗi | Mã | Hành động |
 |---|---|---|
@@ -191,7 +261,7 @@ waivers:
 
 ---
 
-## 8. Tầng L6: mô hình soi nhãn
+## 9. Tầng L6: mô hình soi nhãn
 
 Mục đích: tìm **sót nhãn** và **sai lớp**, hai loại lỗi `qa_check` không bắt được và hại điểm nhiều nhất.
 
@@ -227,7 +297,7 @@ python tools/label_audit.py --data D:/data/gold_val/gold_val_v1 --preds D:/audit
 
 ---
 
-## 9. Ghi chép và số liệu cho slide
+## 10. Ghi chép và số liệu cho slide
 
 | Ở đâu | Ghi gì | Ai |
 |---|---|---|
@@ -245,12 +315,12 @@ Số liệu nên thu cho phần quy trình dữ liệu trong [`presentation.md`]
 
 ---
 
-## 10. Checklist nhanh
+## 11. Checklist nhanh
 
-**Người phụ trách nguồn (cổng A):**
+**Người phụ trách nguồn (cổng A, sáu bước ở mục 2):**
 - [ ] Chạy `qa_check.py --expect configs/qa/<nguồn>.yaml --render`
 - [ ] Đọc mọi dòng `[LỖI]`; xem 2–3 ví dụ của mỗi `[CẢNH BÁO]` có số lượng bất thường
-- [ ] Chấm 30 ảnh trong `qa/sample.csv`
+- [ ] Chấm mẫu trong `qa/sample.csv` (trên viewer)
 - [ ] Chạy lại với `--archive reports/qa` → `PASS`
 - [ ] Dòng log vào `experiment_log.md`, báo Lộc
 
@@ -300,5 +370,5 @@ Mức theo profile `source / gold / merged` (E = lỗi, W = cảnh báo, — = t
 | | `leak_unchecked` | Gold val chạy không kèm `--against` | — | W | — |
 | L4 toàn vẹn | `manifest_missing` | Không thấy manifest cạnh thư mục | — | — | W |
 | | `manifest_mismatch`, `zip_mismatch` | Manifest khớp số ảnh và instance trên đĩa; zip khớp sha256, danh sách file, cấu trúc | — | — | E |
-| L5 người xem | `human_audit` | Tỉ lệ ảnh lỗi trong mẫu vượt ngưỡng (mục 6) | E | E | E |
+| L5 người xem | `human_audit` | Tỉ lệ ảnh lỗi trong mẫu vượt ngưỡng (mục 7) | E | E | E |
 | | `human_audit_pending` | Mẫu chưa chấm xong (kết luận `PASS_AUTO`) | W | W | W |
