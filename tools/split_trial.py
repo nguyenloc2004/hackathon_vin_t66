@@ -181,7 +181,7 @@ def main():
     with open(zip_path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
-    manifest = {"name": args.name, "seed": args.seed, "kind": "trial split (val = Vistas/IDD, chưa phải gold val)",
+    manifest = {"name": args.name, "seed": args.seed, "kind": f"trial split (val lấy từ: {', '.join(srcs)}; chưa phải gold val)",
                 "args": vars(args), "sources": manifest_src, "images": dict(n_img),
                 "instances_per_class": {s: {CLASSES[c]: totals[s][c] for c in range(len(CLASSES))} for s in totals},
                 "zip": zip_path.name, "zip_sha256": h.hexdigest()}
