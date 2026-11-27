@@ -90,7 +90,7 @@ Thuật toán chi tiết (điểm ghép, ngưỡng, unit test): [`data_pipeline.
 
 | Dataset | Link | License | Số ảnh dùng | Ghi chú lọc |
 |---|---|---|---|---|
-| Mapillary Vistas v2 | | CC BY-NC-SA 4.0 (kiểm tra lại) | | |
+| Mapillary Vistas v2 | https://www.mapillary.com/dataset/vistas | CC BY-NC-SA 4.0 + Mapillary Research Use License (phi thương mại, không phát tán lại dataset) | 3.599 (1.877 val + 1.722 train, chọn theo điểm ưu tiên từ 2.200 ảnh train) | 51.220 instances; loại 123 ảnh val + 478 ảnh train (unmatched_rider / group_region); người trong tuk-tuk gộp vào Other vehicle, người trong ô tô/buýt/tải bỏ; qa_check PASS (mẫu 5/70 lỗi = 7%) |
 | IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.006 (train) | 54.367 instances; loại 1.987 ảnh unmatched_rider; 152 ảnh nền |
 | COCO 2017 | | CC BY 4.0 (annotations) | | |
 | Cityscapes | | (kiểm tra lại) | | |
