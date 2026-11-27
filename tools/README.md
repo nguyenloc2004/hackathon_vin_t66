@@ -113,6 +113,20 @@ python tools/label_audit.py --data D:/data/gold_val/gold_val_v1 --preds D:/audit
 
 `audit_queue.csv` (sót nhãn / sai lớp / biên lệch / nhãn thừa, đã xếp ưu tiên) đưa vào CVAT như `review_queue.csv`.
 
+### Xem dataset bằng viewer
+
+```bash
+python tools/viewer/server.py --root D:/data            # tự tìm mọi thư mục có images/ (sâu tối đa 4 cấp)
+python tools/viewer/server.py --data D:/data/converted/vistas D:/data/gold_val/gold_val_v1
+# -> mở http://localhost:8000
+```
+
+- Xem ảnh + mask từng instance (zoom, kéo, bật/tắt từng lớp, xem đỉnh polygon), bảng instance có kích thước bbox và % diện tích.
+- Lọc theo split, lớp, ảnh nền, **mã QA** (đọc `qa/flags.json`), **mẫu người xem** (chưa chấm / ok / bad), **nghi vấn L6** (`qa/audit/`). Vật bị cờ có viền đứt nét đỏ (lỗi) / vàng (cảnh báo).
+- **Chấm mẫu ngay trên viewer**: ảnh trong `qa/sample.csv` có khung chấm bên phải; phím `O` = ok rồi sang ảnh chưa chấm kế tiếp, `B` = bad (chọn loại lỗi), `N` = ảnh chưa chấm kế tiếp. Lưu thẳng vào `qa/sample.csv`. Chấm xong chạy lại `qa_check.py` để ra kết luận.
+- Link `http://localhost:8000/#ds=<id>&k=<split>/<tên ảnh>` mở thẳng một ảnh (tiện báo nhau trong kênh đội; mỗi người chạy server trên máy mình).
+- Cần `qa_check.py` bản có `qa/flags.json` (chạy lại nếu bộ đã chạy QA từ trước). Viewer chỉ nghe ở `127.0.0.1`; đóng file `sample.csv` trong Excel trước khi chấm trên viewer.
+
 ### 5. Dựng phiên bản dataset
 
 ```bash
