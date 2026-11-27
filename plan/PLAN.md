@@ -1,192 +1,177 @@
-# Kế hoạch đội: AIInAction RoboTaxi Data Centric Competition
+# Kế hoạch tổng thể: AIInAction RoboTaxi Data Centric Competition
 
-Lead: **Nguyễn Hữu Lộc** · Đội 6 người · `TEAM_ID = 71`
+Lead: **Nguyễn Hữu Lộc** · Thành viên: Minh Thắng, Bảo Long, Đạt, Nguyễn Bình Anh, Quang Hưng · **`TEAM_ID = 71`**
 
-> Tài liệu gốc: [`docs/labeling_guideline.md`](../docs/labeling_guideline.md), [`docs/train_and_export.ipynb`](../docs/train_and_export.ipynb), ảnh chụp website trong `docs/`.
-> Tài liệu liên quan: [`class_mapping.md`](class_mapping.md) (ánh xạ public dataset về 11 lớp), [`experiment_log.md`](experiment_log.md) (nhật ký huấn luyện và nộp bài).
+Tài liệu này là bản kế hoạch chính. Các tài liệu chi tiết:
 
----
-
-## 1. Tóm tắt đề
-
-| Mục | Nội dung |
-|---|---|
-| Bài toán | Instance segmentation ảnh giao thông Việt Nam, 11 lớp cố định (0 Car … 10 Traffic light) |
-| Mô hình | **Cố định** `yolo26n-seg`, `imgsz = 640`, Ultralytics `8.4.214`. Đội chỉ cải thiện **dữ liệu** |
-| Điểm | `100 × mask mAP@[.5:.95]`, **trung bình đều 11 lớp**, trên bộ test ẩn |
-| Nộp bài | `.zip` (≤ 42 MB) chứa đúng một `model.onnx`, xuất bằng Bước 4 của notebook mẫu. **20 lượt**, mỗi lúc chỉ 1 bài trong hàng đợi chấm |
-| Chọn bài | Tối đa **2 bài** tính điểm private, chọn trước khi đóng nộp (không chọn thì hệ thống lấy 2 bài gần nhất) |
-| Xếp hạng cuối | **50% thứ hạng private + 50% thuyết trình** |
-| Bắt buộc lưu | Notebook, zip dữ liệu, `run_report.json`; danh sách mọi public dataset (tên, link, license, số ảnh, cách ánh xạ) |
-| Cấm | Nộp trùng checkpoint đội khác (cả hai đội bị trừ 10 điểm) |
-
-### Mốc thời gian (giờ Việt Nam)
-
-| Thời điểm | Sự kiện |
-|---|---|
-| 09:00 27/11 | Mở nộp bài |
-| **10:30 28/11** | **Đóng nộp bài** |
-| 11:00 28/11 | Công bố bảng xếp hạng private |
-| 11:30 28/11 | Thuyết trình giải pháp |
-
-### Hệ quả cho chiến lược
-
-- mAP trung bình đều theo lớp, nên **lớp hiếm quan trọng ngang Car**: Cyclist, Bicycle, Other vehicle, Bus, Traffic light phải có đủ ví dụ.
-- Điểm tính trên IoU từ 0,50 đến 0,95, nên **độ sát biên của mask** ảnh hưởng lớn. Polygon cẩu thả làm mất điểm nhiều hơn so với việc thiếu ảnh.
-- Bộ test ẩn nhiều khả năng là **ảnh đường phố Việt Nam thật** (cạnh dài khoảng 1280 px), nên dữ liệu phải gần miền này. 10 ảnh mẫu chỉ là ảnh vẽ, không dùng huấn luyện.
-- Hệ thống chấm bỏ qua mask nhỏ hơn 64 px ở thang 640 và chỉ giữ tối đa 100 dự đoán mỗi ảnh.
-
----
-
-## 2. Chiến lược dữ liệu
-
-### 2.1 Public dataset (nền dữ liệu lớn)
-
-| Ưu tiên | Dataset | Vì sao | Rủi ro |
-|---|---|---|---|
-| 1 | **Mapillary Vistas v2** | Instance mask cho cả biển báo (mặt trước/sau) và đèn giao thông, có nhãn rider, ảnh đa dạng toàn cầu | Cần đăng ký; nhiều vùng "group" |
-| 2 | **IDD (India Driving Dataset)** | Cảnh hỗn loạn giống Việt Nam: nhiều xe máy, autorickshaw, xe tải | Đăng ký duyệt tay, có thể chậm |
-| 3 | **COCO 2017** (chỉ ảnh đường phố) | Polygon sẵn, nhiều person/motorcycle/bicycle | Không gán đủ biển báo, phải ghép rider; mask thô |
-| 4 | **Cityscapes** | Polygon chất lượng cao | Duyệt tài khoản lâu; biển báo và đèn **không có instance** |
-| 5 | **Roboflow Universe** (giao thông Việt Nam, có polygon) | Đúng miền | Chất lượng nhãn không đồng đều, license khác nhau |
-
-**Đăng ký Mapillary, IDD, Cityscapes ngay trong giờ đầu.**
-
-### 2.2 Ánh xạ về 11 lớp (chi tiết trong [`class_mapping.md`](class_mapping.md))
-
-Mọi converter phải áp dụng cùng các quy tắc sau:
-
-1. **Ghép rider + xe**: rider chồng lấn với motorcycle/bicycle thì gộp thành **một** instance `Motorcyclist`/`Cyclist` (hợp mask). Xe không có rider là `Motorcycle`/`Bicycle`. Rider không tìm được xe thì **bỏ ảnh** (hoặc đánh dấu để người xem lại).
-2. **Mask không chồng nhau**: raster hóa theo thứ tự từ xa đến gần (vật phía trước ghi đè), rồi chuyển lại thành polygon. Một instance bị tách mảnh thì ghi nhiều polygon trên **cùng một dòng nhãn** (nối các polygon lại theo cách Ultralytics hỗ trợ) hoặc giữ mảnh lớn nhất.
-3. **Lọc vật nhỏ**: bỏ đối tượng có cạnh ngắn của bbox nhỏ hơn **1,25% cạnh dài của ảnh**.
-4. **Biển báo** chỉ phủ mặt biển, không phủ cột; lấy cả mặt trước và mặt sau. **Đèn giao thông** phủ cả hộp đèn.
-5. **Đầu kéo** là `Truck`, **rơ-moóc/container** là `Other vehicle`.
-6. **Vùng crowd/group** (person-group, vehicle-group): nếu chiếm diện tích lớn thì **bỏ ảnh**, vì các đối tượng không được gán nhãn sẽ dạy mô hình coi chúng là nền.
-7. **Dataset thiếu lớp** (ví dụ COCO không gán đủ biển báo): hoặc chỉ lấy ảnh không có lớp bị thiếu, hoặc **gán nhãn giả bằng teacher** cho các lớp thiếu trước khi đưa vào.
-8. Resize ảnh về cạnh dài **1280 px** để giảm dung lượng và tăng tốc huấn luyện.
-
-### 2.3 Dữ liệu Việt Nam tự thu thập
-
-- Nguồn: video camera hành trình hoặc đi đường ở Hà Nội và TP.HCM (ghi lại nguồn và license), ảnh tự chụp.
-- Trích khoảng 1 khung hình mỗi 2–3 giây, **loại ảnh gần trùng** bằng perceptual hash.
-- Ưu tiên cảnh khó: **đêm, mưa, ngược sáng, đông xe máy, ngã tư có đèn, xe ba gác/xích lô, xe đầu kéo**.
-- Mục tiêu: 2.000–5.000 ảnh, gán nhãn nháp tự động rồi người duyệt (mục 2.4).
-
-### 2.4 Gán nhãn nháp: teacher → người duyệt
-
-1. Huấn luyện **teacher** lớn (`yolo26x-seg` hoặc `yolo26l-seg`, có thể `imgsz` 1024) trên dữ liệu public đã gộp. Teacher chỉ dùng để làm dữ liệu, **không nộp**.
-2. Teacher dự đoán trên ảnh Việt Nam; với các lớp yếu có thể dùng thêm **SAM 3** (prompt bằng chữ) hoặc Grounding DINO + SAM 2.
-3. Đưa nhãn nháp vào **CVAT**. Người duyệt sửa lớp, sửa biên, thêm đối tượng bị sót, xóa nhãn sai. **Ưu tiên ảnh mà mô hình kém tự tin** (active learning).
-4. Duyệt chéo: ít nhất 10% ảnh do người thứ hai kiểm tra lại theo checklist ở mục 5.
-
-### 2.5 Bộ val chuẩn (gold val)
-
-- Khoảng **200 ảnh Việt Nam thật**, **không trùng** nguồn video với dữ liệu train (lấy từ video khác để tránh rò rỉ).
-- Gán **tay, cẩn thận, đúng guideline**; có thể dùng SAM trong CVAT để làm biên sát hơn.
-- Đây là **thước đo chính** để quyết định giữ hay bỏ dữ liệu. Chỉ có 20 lượt nộp, nên không dùng leaderboard để dò tìm.
-- Đặt vào `images/val`, `labels/val` để notebook dùng làm val, thay vì để notebook chia ngẫu nhiên.
-
-### 2.6 Cân bằng lớp và augmentation
-
-- Đếm số instance mỗi lớp (Bước 2 của notebook). Lớp có ít hơn khoảng 500 instance trong train thì **lấy thêm ảnh chứa lớp đó**.
-- Thêm khoảng 3–5% **ảnh nền khó** (áp phích, kính phản chiếu, showroom) với nhãn rỗng để giảm báo nhầm.
-- Augmentation có thể thử ở Bước 3: `copy_paste=0.1–0.3`, `mixup=0.05`, `close_mosaic=10`, `hsv_v` cao hơn để mô phỏng cảnh đêm. **Chỉ giữ thay đổi nào cải thiện điểm trên gold val.**
-
----
-
-## 3. Phân công
-
-| Thành viên | Vai trò | Đầu ra |
+| File | Nội dung | Ai đọc kỹ |
 |---|---|---|
-| **Nguyễn Hữu Lộc** (lead) | Pipeline chung, script gộp dữ liệu (`merge.py`), quản lý lượt nộp, quyết định giữ/bỏ dữ liệu | Repo, `datasets/merged_vX.zip`, nhật ký nộp |
-| **Minh Thắng** | Mapillary Vistas (+ Cityscapes nếu được duyệt) sang YOLO-seg theo quy ước | `vistas_yolo.zip`, bảng ánh xạ |
-| **Bảo Long** | IDD + COCO (lọc ảnh đường phố) + Roboflow Việt Nam | `idd_yolo.zip`, `coco_yolo.zip`, bảng ánh xạ |
-| **Đạt** | Thu thập ảnh Việt Nam, loại trùng, gán nhãn nháp (teacher / SAM 3) | 2–5k ảnh Việt Nam có nhãn nháp |
-| **Nguyễn Bình Anh** | Dựng CVAT, gán **gold val** khoảng 200 ảnh, điều phối việc duyệt nhãn | `gold_val.zip`, `conventions.md` |
-| **Quang Hưng** | Huấn luyện (baseline, ablation, teacher) trên Kaggle/Colab, phân tích lỗi; từ 06:00 làm slide | Bảng kết quả, slide |
-
-- Ai xong việc thì chuyển sang **duyệt nhãn** (đây luôn là việc tốn công nhất).
-- GPU: mỗi tài khoản Kaggle có khoảng 30 giờ/tuần (T4×2 hoặc P100), nên 6 tài khoản có thể chạy song song nhiều thí nghiệm. Colab miễn phí dễ ngắt kết nối, nên luôn đặt `DRIVE_OUTPUT_DIR`.
+| [`schedule.md`](schedule.md) | Lịch theo giờ cho từng người, ca ngủ, họp nhanh | Cả đội |
+| [`data_pipeline.md`](data_pipeline.md) | Đặc tả kỹ thuật: converter, ghép rider, raster/polygon, lọc, gộp, gán nhãn nháp | Lộc, Thắng, Long, Đạt |
+| [`class_mapping.md`](class_mapping.md) | Ánh xạ nhãn từng public dataset về 11 lớp | Thắng, Long |
+| [`labeling_sop.md`](labeling_sop.md) | Quy trình CVAT, gold val, duyệt nhãn, kiểm soát chất lượng | Cả đội (bắt buộc) |
+| [`conventions.md`](conventions.md) | Các ca khó đã chốt của đội (sổ quy ước sống) | Cả đội (bắt buộc) |
+| [`training_submission.md`](training_submission.md) | Ngân sách GPU, thiết kế ablation, công thức huấn luyện, chiến lược 20 lượt nộp, chọn 2 bài cuối | Lộc, Hưng |
+| [`presentation.md`](presentation.md) | Câu chuyện, dàn slide, số liệu cần thu thập dọc đường | Hưng, Lộc, cả đội |
+| [`experiment_log.md`](experiment_log.md) | Nhật ký dữ liệu, huấn luyện, nộp bài | Người chạy và người nộp |
 
 ---
 
-## 4. Lịch trình
+## 1. Hiểu đúng cuộc chơi
 
-| Khung giờ | Việc | Phụ trách | Lượt nộp |
+| Yếu tố | Sự thật | Hệ quả hành động |
+|---|---|---|
+| Mô hình khóa: `yolo26n-seg`, 640 | Năng lực mô hình nhỏ, cố định | Không phí thời gian dò tham số; mọi giờ công dồn vào **dữ liệu** |
+| Điểm = mask mAP@[.5:.95], **trung bình đều 11 lớp** | Lớp hiếm nặng ngang lớp phổ biến | Mỗi lớp phải đủ ví dụ; một lớp gần 0 AP kéo tụt cả điểm |
+| IoU từ 0,50 tới 0,95 | Biên mask lệch vài pixel cũng mất điểm ở ngưỡng cao | Polygon phải sát; ưu tiên nguồn có mask chất lượng (Vistas, IDD) hơn mask thô |
+| Test ẩn: ảnh giao thông Việt Nam thật (suy luận từ đề) | Lệch miền là kẻ thù số 1 | **Ảnh Việt Nam thu thập từ video/bộ ảnh sẵn có + gold val Việt Nam** là trục chính |
+| Bộ chấm bỏ GT < 64 px (thang 640), `max_det = 100` | Vật cực nhỏ không tính | Không cố gán vật tí hon; tập trung vật cỡ vừa và lớn |
+| 20 lượt nộp, một bài trong hàng đợi | Phản hồi leaderboard ít và chậm | Quyết định bằng **gold val nội bộ**, leaderboard chỉ để xác nhận |
+| Xếp hạng = 50% private + **50% thuyết trình** | Quy trình và câu chuyện có giá trị ngang điểm số | Ghi số liệu, ảnh minh họa **từ vòng đầu tiên**, không để đến cuối mới làm slide |
+| Phải công khai mọi public dataset | Bị hỏi về nguồn và license | Ghi lại nguồn ngay khi tải (bảng trong `class_mapping.md`) |
+
+### Mốc giờ (UTC+7)
+
+`09:00 27/11` mở nộp → **`10:30 28/11` đóng nộp** → `11:00` công bố private → `11:30` thuyết trình.
+
+---
+
+## 2. Mục tiêu (north star)
+
+1. **Điểm private cao và ổn định**: tối ưu điểm trên gold val Việt Nam, không dò leaderboard public.
+2. **Không lớp nào bị bỏ rơi**: mục tiêu mỗi lớp có ít nhất **1.000 instance trong train** (Cyclist, Other vehicle tối thiểu 400) và ít nhất **15 instance trong gold val**.
+3. **Một quy trình dữ liệu kể được thành câu chuyện**: thu thập → ánh xạ → gán nháp → người duyệt → đo → sửa, có số liệu từng vòng.
+4. **Tái lập được 100%**: mỗi bài nộp truy ngược được về zip dữ liệu, notebook và `run_report.json`.
+
+---
+
+## 3. Chiến lược: “bánh đà dữ liệu” 4 tầng
+
+```
+ Tầng 1  Public dataset đã ánh xạ chuẩn ──┐
+                                           ├─► Teacher lớn (l/x-seg, 1024) ──► Gán nháp ảnh Việt Nam
+ Tầng 2  Ảnh Việt Nam (video sẵn có)  ────┘                                        │
+                                                                                     ▼
+ Tầng 3  Người duyệt (CVAT + SAM) theo SOP ◄──── ưu tiên ảnh mô hình kém tự tin ◄────┘
+                    │
+                    ▼
+ Tầng 4  Gộp có trọng số → huấn luyện yolo26n-seg → đo trên gold val → phân tích lỗi → quay lại tầng 2/3
+```
+
+### Tầng 1: Public dataset (nền rộng)
+
+| Ưu tiên | Dataset | Lấy bao nhiêu | Lý do |
 |---|---|---|---|
-| **27/11 10:30–12:00** | Lập repo + Drive chung; đăng ký Mapillary/IDD/Cityscapes; dựng CVAT; chạy thử notebook `TEAM_ID=71` trên dữ liệu nhỏ để kiểm tra môi trường | Cả đội | 0 |
-| **12:00–15:00** | Viết converter Vistas/IDD/COCO; thu ảnh Việt Nam; gán gold val | Thắng, Long, Đạt, Bình Anh | — |
-| **~15:00** | **Baseline**: Vistas đã ánh xạ, huấn luyện ngắn | Hưng, Lộc | #1 |
-| **15:00–20:00** | Gộp Vistas + IDD (+ COCO); ablation từng nguồn trên gold val; bắt đầu huấn luyện teacher | Lộc, Hưng | #2–#4 |
-| **20:00–02:00** | Teacher gán nhãn nháp ảnh Việt Nam; chia ca duyệt; bổ sung lớp hiếm và ảnh nền khó | Đạt + cả đội duyệt | #5–#9 |
-| **28/11 02:00–07:00** | Ngủ luân phiên (luôn có 1–2 người trực); chạy huấn luyện dài (60–100 epoch) với bộ dữ liệu tốt nhất | Trực ca | #10–#12 |
-| **07:00–09:30** | Thử các biến thể cuối; nộp bản cuối, **không dồn đến phút chót** | Lộc, Hưng | #13–#17 |
-| **≤ 10:15** | **Chọn 2 bài**: (a) điểm public cao nhất, (b) tốt nhất trên gold val. Lưu đủ notebook, zip dữ liệu, `run_report.json` | Lộc | 3 dự phòng |
-| **06:00–11:30** | Hoàn thiện slide và tập thuyết trình | Hưng + cả đội | — |
+| 1 | **Mapillary Vistas v2** | 3.000–5.000 ảnh, chọn ảnh nhiều xe 2 bánh / lớp hiếm | Instance mask đủ cả biển báo, đèn, rider; chất lượng biên tốt |
+| 2 | **IDD Segmentation** | 2.000–4.000 ảnh | Giao thông hỗn hợp gần Việt Nam nhất (xe máy, xe ba bánh, xe tải) |
+| 3 | **COCO 2017** (lọc ảnh đường phố) | ≤ 1.500 ảnh | Bổ sung Bicycle/Cyclist/Motorcycle; **phải gán nháp thêm biển báo** |
+| 4 | Cityscapes / BDD100K | Chỉ khi thời gian còn | Thiếu instance biển báo, đèn; cần gán nháp bù |
+| 5 | Roboflow Universe (giao thông Việt Nam có polygon) | Tùy chất lượng | Đúng miền; phải đối chiếu quy ước trước khi dùng |
 
-### Ngân sách 20 lượt nộp
+### Tầng 2: Ảnh Việt Nam (trục chính)
 
-- Khoảng 12 lượt cho **ablation dữ liệu**: mỗi lần chỉ thay đổi một yếu tố.
-- Khoảng 5 lượt cho **bản cuối**.
-- **3 lượt dự phòng** (lỗi, nộp lại).
-- Trước mỗi lần nộp: phải có điểm gold val và ghi vào [`experiment_log.md`](experiment_log.md).
+Đội **không tự quay**; toàn bộ ảnh Việt Nam lấy từ **video và bộ ảnh đã có sẵn trên mạng**.
 
----
+- **Video YouTube**: dashcam ô tô, video đi đường, walking tour ở Hà Nội, TP.HCM, Đà Nẵng và các tỉnh. Từ khóa gợi ý: `dashcam Hà Nội`, `Saigon traffic 4K`, `Hanoi street night`, `lái xe trời mưa Hà Nội`, `giờ cao điểm ngã tư`.
+  - Ưu tiên bật bộ lọc **Creative Commons** của YouTube. Video thường thì ghi lại nguồn, chỉ dùng trong cuộc thi, không phát tán lại ảnh.
+  - Tải bằng `yt-dlp` ở 1080p.
+- **Bộ ảnh giao thông Việt Nam công khai** trên Kaggle, Roboflow Universe, Hugging Face, kể cả bộ chỉ có bbox hoặc không có nhãn (ví dụ dữ liệu biển báo Zalo AI Challenge 2020): lấy **ảnh**, còn nhãn thì làm lại bằng gán nháp + người duyệt. Kiểm tra license từng bộ.
+- **Tiêu chí chọn video**:
+  - Góc nhìn giống camera xe: dashcam phía trước hoặc ngang tầm mắt người.
+  - Loại bỏ: góc drone/flycam, timelapse, video có chữ hoặc watermark lớn, video bị làm mờ hay chỉnh màu quá mức.
+  - Đa dạng: nhiều thành phố; ngày, đêm, mưa; ngã tư có đèn; đường lớn, phố nhỏ, quốc lộ có xe tải.
+- **Chống một video áp đảo**: 30–50 video, mỗi video lấy **≤ 150 khung**.
+- Mục tiêu: **3.000 khung hình** sau khi lọc trùng, trong đó **≥ 800 ảnh được người duyệt**.
+- **Gold val tách riêng theo kênh/video**: ảnh gold val lấy từ kênh YouTube hoặc bộ ảnh **không dùng** cho train, để tránh rò rỉ (cùng kênh thường cùng camera, cùng tuyến đường).
 
-## 5. Quy tắc làm việc
+### Tầng 3: Gán nháp và người duyệt
 
-### Dữ liệu và huấn luyện
+- Đợt 1 (ngay, không cần huấn luyện): mô hình COCO pretrained lớn + SAM 3 cho lớp thiếu (biển báo, phương tiện khác).
+- Đợt 2 (từ ~20:00): **teacher** huấn luyện trên dữ liệu đã gộp, suy luận với TTA trên ảnh Việt Nam.
+- Người duyệt theo [`labeling_sop.md`](labeling_sop.md); ảnh chưa duyệt chỉ được dùng nếu qua bộ lọc tin cậy (xem [`data_pipeline.md`](data_pipeline.md) §6).
 
-- Cả đội dùng `TEAM_ID = 71` và cùng một zip dữ liệu cho mỗi phiên bản (`merged_v1`, `merged_v2`, …), lưu trên Drive chung.
-- Notebook chỉ sửa **ô tham số** và **Bước 3**. **Không sửa Bước 4** (xuất ONNX và đóng gói).
-- Mỗi lượt huấn luyện ghi lại: phiên bản dữ liệu, hash (`run_report.json`), tham số, mAP gold val, AP từng lớp, điểm public (nếu đã nộp).
-- **Không chia sẻ checkpoint ra ngoài đội.**
+### Tầng 4: Gộp và đo
 
-### Checklist duyệt nhãn (theo mục 6 của guideline)
-
-- [ ] Không sót vật nhỏ nhưng vẫn vượt ngưỡng (người đi bộ ở xa, biển báo, đèn giao thông)
-- [ ] Mask Motorcyclist/Cyclist phủ **cả xe lẫn người**
-- [ ] Mask không chồng nhau; không tràn nền hay bóng đổ
-- [ ] Xe đạp điện kiểu xe máy là Motorcycle; xe 9–15 chỗ là Car; xe ba gác là Other vehicle
-- [ ] Không gán biển quảng cáo, áp phích, phản chiếu, người ngồi trong ô tô
-- [ ] Không tách một vật thành hai instance, không gộp hai vật thành một
-
-### Ca khó
-
-Áp dụng cây quyết định ở mục 5 của guideline. Ca nào vẫn phân vân thì ghi vào `plan/conventions.md` (Bình Anh quản lý) để cả đội gán nhất quán.
+- Mỗi phiên bản dữ liệu được dựng từ một **công thức (recipe) YAML** cố định → zip + manifest + sha256.
+- Mọi so sánh dùng **cùng gold val**, cùng ngân sách huấn luyện ablation.
+- Chỉ giữ thay đổi nào tăng gold val **≥ 0,5 điểm** (dưới mức này coi là nhiễu).
 
 ---
 
-## 6. Slide thuyết trình (50% điểm)
+## 4. Cổng quyết định (decision gates)
 
-1. Bài toán và thách thức của giao thông Việt Nam
-2. Quy trình dữ liệu: thu thập, ánh xạ, gán nháp, duyệt nhãn, gold val
-3. **Bảng các public dataset**: tên, link, license, số ảnh dùng, cách ánh xạ về 11 lớp
-4. Label guideline của đội và các ca khó đã quyết định
-5. Quy trình duyệt nhãn và kiểm soát chất lượng
-6. **Các vòng cải thiện kèm số liệu**: biểu đồ mAP qua từng phiên bản dữ liệu, AP từng lớp
-7. Phân tích lỗi: ví dụ trước và sau khi cải thiện
-8. Bài học và hướng phát triển
-
----
-
-## 7. Rủi ro và phương án dự phòng
-
-| Rủi ro | Phương án |
-|---|---|
-| Cityscapes/IDD duyệt tài khoản chậm | Dựa vào Mapillary + COCO + dữ liệu Việt Nam tự gán |
-| Colab ngắt kết nối giữa chừng | Dùng Kaggle cho các lượt dài; `DRIVE_OUTPUT_DIR` để lưu `best.pt` |
-| Hàng đợi chấm đông vào sáng 28/11 | Bản cuối phải nộp **trước 09:30** |
-| Dữ liệu public kéo điểm xuống (lệch miền) | Ablation từng nguồn trên gold val; tăng tỉ trọng ảnh Việt Nam |
-| Bài nộp bị từ chối (sai định dạng) | Luôn chạy đủ Bước 4–5 của notebook trước khi nộp |
-| Mất dữ liệu hoặc không tái lập được | Lưu zip dữ liệu từng phiên bản, `run_report.json`, notebook trên Drive |
+| Cổng | Hạn | Điều kiện qua cổng | Nếu không qua |
+|---|---|---|---|
+| **G0: Pipeline** | 27/11 13:00 | Notebook chạy trọn Bước 0–6 với `TEAM_ID=71`, tạo được `submission.zip` hợp lệ | Lộc + Hưng dồn sức sửa, mọi người khác vẫn làm dữ liệu |
+| **G1: Baseline** | 27/11 15:30 | Lượt nộp #1 có điểm; gold val v0 (≥ 60 ảnh) sẵn sàng | Dùng val chia ngẫu nhiên từ Vistas tạm thời |
+| **G2: Công thức dữ liệu** | 27/11 21:00 | Ablation A1–A4 xong; chọn tổ hợp nguồn public tốt nhất; gold val v1 (≥ 150 ảnh) | Giữ tổ hợp tốt nhất hiện có, không mở thêm nguồn |
+| **G3: Đóng băng dữ liệu** | 28/11 01:30 | `merged_final` được dựng, QA sạch, ≥ 800 ảnh Việt Nam đã duyệt | Đóng băng với số ảnh duyệt hiện có, phần còn lại dùng nhãn nháp đã lọc |
+| **G4: Nộp cuối** | 28/11 09:30 | Các lượt huấn luyện dài đã nộp và có điểm | Nộp bản tốt nhất hiện có |
+| **G5: Chọn bài** | 28/11 10:15 | Đã chọn 2 bài trên website | Hệ thống tự lấy 2 bài gần nhất (tránh để xảy ra) |
 
 ---
 
-## 8. Việc cần làm ngay (30 phút đầu)
+## 5. Phân công và trách nhiệm (RACI rút gọn)
 
-- [ ] **Lộc**: tạo repo + thư mục Drive chung, chia quyền, tạo sheet nhật ký
-- [ ] **Minh Thắng, Bảo Long**: đăng ký Mapillary Vistas, IDD, Cityscapes; tải COCO annotations
-- [ ] **Quang Hưng**: chạy notebook mẫu với `TEAM_ID=71` trên Kaggle để kiểm tra môi trường và Bước 4
-- [ ] **Đạt**: lập danh sách nguồn video/ảnh Việt Nam, viết script trích khung hình + loại trùng
-- [ ] **Nguyễn Bình Anh**: dựng CVAT với 11 lớp đúng thứ tự id, tạo `plan/conventions.md`
+| Mảng | Chịu trách nhiệm chính | Hỗ trợ | Đầu ra bắt buộc |
+|---|---|---|---|
+| Điều phối, cổng quyết định, nộp bài | **Lộc** | Hưng | `experiment_log.md`, quyết định từng cổng |
+| Khung code chung (`tools/common.py`, `build_dataset.py`, `qa_check.py`) | **Lộc** | Thắng | Script dựng dataset từ recipe |
+| Mapillary Vistas (+ Cityscapes) | **Minh Thắng** | Lộc | `vistas_yolo/` + thống kê lớp + 30 ảnh xem mẫu |
+| IDD + COCO + Roboflow | **Bảo Long** | Thắng | `idd_yolo/`, `coco_yolo/` + thống kê + ảnh mẫu |
+| Tìm và tải video/bộ ảnh Việt Nam, trích khung, lọc trùng, gán nháp | **Đạt** | Long (gán nháp, tìm video đêm/mưa) | `vn_sources.csv` (danh sách nguồn + license), `vn_raw/`, `vn_pseudo/`, hàng đợi duyệt |
+| CVAT, gold val, điều phối duyệt nhãn, sổ quy ước | **Nguyễn Bình Anh** | Cả đội | `gold_val_vX.zip`, `conventions.md`, thống kê duyệt |
+| Huấn luyện, ablation, teacher, phân tích lỗi | **Quang Hưng** | Lộc | Bảng kết quả, ảnh lỗi, `best.pt` trên Drive |
+| Slide và thuyết trình | **Quang Hưng** (biên tập), **Lộc** (trình bày) | Cả đội cung cấp số liệu, ảnh | Slide hoàn chỉnh trước 10:45 28/11 |
+
+Quy tắc chung: **ai xong việc chính thì chuyển sang duyệt nhãn**, vì đây luôn là nút thắt cổ chai.
+
+---
+
+## 6. Ngân sách tài nguyên
+
+| Tài nguyên | Có | Kế hoạch dùng |
+|---|---|---|
+| GPU | Kaggle (khoảng 30 giờ/tuần/tài khoản, T4×2 hoặc P100) × 6 tài khoản; Colab; ai có Colab Pro / GPU thuê thì báo ngay | Ablation chạy song song trên 3–4 tài khoản; teacher trên GPU mạnh nhất |
+| Giờ công duyệt nhãn | ~6 người × ~8 giờ hữu ích | ≈ 150 ảnh gold val (~8 giờ công) + 800–1.000 ảnh duyệt nhanh (~25 giờ công) |
+| Lượt nộp | 20 | 12 cho ablation, 5 cho bản cuối, 3 dự phòng (chi tiết trong `training_submission.md`) |
+| Dung lượng | Drive chung | Ảnh resize về cạnh dài 1280, JPEG chất lượng 92 |
+
+---
+
+## 7. Rủi ro và phương án
+
+| Rủi ro | Khả năng | Ảnh hưởng | Phòng ngừa / phản ứng |
+|---|---|---|---|
+| Đăng ký IDD/Cityscapes bị duyệt chậm | Cao | Trung bình | Đăng ký ngay 11:00; Vistas + COCO + ảnh Việt Nam đủ để chạy |
+| Converter ghép rider sai → Motorcyclist hỏng | Trung bình | **Rất cao** (lớp phổ biến nhất ở Việt Nam) | Bắt buộc xem 30 ảnh mẫu mỗi nguồn trước khi gộp; unit test trên ảnh khó |
+| Dữ liệu public làm tụt điểm do lệch miền | Trung bình | Cao | Ablation từng nguồn; tăng trọng số ảnh Việt Nam |
+| Nhãn nháp nhiễu (sót vật → dạy mô hình coi là nền) | Cao | Cao | Bộ lọc tin cậy; ảnh nghi ngờ vào hàng duyệt hoặc loại bỏ |
+| Colab ngắt giữa chừng | Cao | Trung bình | Lượt dài chạy trên Kaggle; luôn đặt `DRIVE_OUTPUT_DIR` |
+| Hàng đợi chấm đông sáng 28/11 | Cao | Cao | Bản cuối nộp **trước 09:30**; không dồn |
+| Kiệt sức ban đêm → nhãn ẩu | Cao | Cao | Ngủ luân phiên theo `schedule.md`; duyệt chéo 10% |
+| Video sẵn có kém chất lượng (nén mạnh, mờ chuyển động, góc quay khác camera xe) | Trung bình | Trung bình | Lọc theo tiêu chí §3 Tầng 2; bỏ khung mờ; giới hạn 150 khung/video |
+| Bị hỏi về bản quyền video | Trung bình | Thấp–Trung bình | Ưu tiên video Creative Commons; ghi đủ nguồn trong `vn_sources.csv`; không công bố lại ảnh |
+| Mất file / không tái lập | Thấp | Rất cao | Recipe + manifest + sha256 cho mọi phiên bản; mọi thứ lên Drive |
+| Gold val quá nhỏ → so sánh nhiễu | Trung bình | Cao | ≥ 150 ảnh, phủ đủ lớp; ngưỡng cải thiện 0,5 điểm |
+
+---
+
+## 8. Định nghĩa “xong” (Definition of Done) trước 10:30 28/11
+
+- [ ] 2 bài đã được chọn trên website, ghi lý do chọn vào `experiment_log.md`
+- [ ] Zip dữ liệu cuối + recipe + manifest + notebook đã chạy + `run_report.json` lưu trên Drive cho **cả 2 bài**
+- [ ] Bảng public dataset đầy đủ (tên, link, license, số ảnh, ánh xạ)
+- [ ] Slide có biểu đồ điểm qua các vòng, ảnh lỗi trước/sau, thống kê duyệt nhãn
+- [ ] Cả đội đã tập thuyết trình ít nhất 1 lần
+
+---
+
+## 9. Việc cần làm ngay (trong 45 phút)
+
+- [ ] **Lộc**: tạo cấu trúc repo (`tools/`, `configs/`), Drive chung, sheet nhật ký; chia việc trong nhóm chat
+- [ ] **Minh Thắng**: đăng ký và tải Mapillary Vistas v2 (bắt đầu bằng phần validation 2.000 ảnh cho nhanh)
+- [ ] **Bảo Long**: đăng ký IDD, Cityscapes; tải COCO 2017 annotations + ảnh train
+- [ ] **Quang Hưng**: chạy notebook mẫu với `TEAM_ID=71` trên Kaggle bằng dữ liệu mẫu (qua cổng G0)
+- [ ] **Đạt**: lập `vn_sources.csv` (link, kênh, thành phố, ngày/đêm/mưa, license), cài `yt-dlp`, chuẩn bị script trích khung + lọc trùng; chọn trước 3–5 video riêng cho gold val và giao cho Bình Anh
+- [ ] **Nguyễn Bình Anh**: dựng CVAT (11 lớp đúng thứ tự id), đọc kỹ guideline, khởi tạo `conventions.md` cùng Lộc
