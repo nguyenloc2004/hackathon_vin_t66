@@ -295,13 +295,15 @@ def mask_to_polygon(mask, offset=(0, 0), eps=0.7, min_part_area=20.0, min_part_f
         a = cv2.approxPolyDP(c, eps, True).reshape(-1, 2).astype(np.float64)
         if len(a) >= 3:
             keep.append((area, a))
-    if not keep:  # vật rất nhỏ / mảnh: giữ contour lớn nhất nếu đủ điểm
+    if not keep:  # vật rất nhỏ / mảnh: giữ contour lớn nhất nếu đủ điểm và đủ diện tích
         c = max(contours, key=cv2.contourArea).reshape(-1, 2).astype(np.float64)
-        if len(c) < 3:
+        if len(c) < 3 or abs(cv2.contourArea(c.astype(np.float32))) < 1.5:
             return None
         keep = [(0.0, c)]
     keep = [a for _, a in sorted(keep, key=lambda t: -t[0])[:max_parts]]
     poly = _bridge_parts(keep)
+    if abs(cv2.contourArea(poly.astype(np.float32))) < 1.5:
+        return None
     # +0.5: đổi chỉ số pixel sang tọa độ liên tục (tâm pixel)
     return poly + np.asarray(offset, dtype=np.float64) + 0.5
 

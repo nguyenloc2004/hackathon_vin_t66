@@ -48,7 +48,7 @@ def role_of(label):
     label = label.strip().lower()
     if label in SKIP_LABELS:
         return None
-    if label.endswith("group"):             # persongroup, cargroup, ridergroup...
+    if label.endswith("group") and label != "polegroup":  # persongroup, cargroup, ridergroup...
         return C.CROWD
     return ROLE_MAP.get(label, C.OCCLUDER)
 
