@@ -25,7 +25,8 @@ Hệ quả:
 
 - Lượt dài phải **khởi chạy trước 02:00 28/11** để xong trước 08:00.
 - Kích thước train cuối nên giữ khoảng **6.000–9.000 ảnh**; nhiều hơn mà không đủ epoch thường không tốt hơn.
-- `CACHE = "ram"` nếu máy đủ RAM (Kaggle 29 GB thường đủ cho 8k ảnh 1280px ở 640) để giảm nghẽn dataloader; `WORKERS = 4` trên Kaggle.
+- `CACHE = "ram"` mặc định ở cả Kaggle và Colab: Ultralytics tự đo RAM, không đủ thì tự bỏ cache. Colab T4 chỉ có 2 CPU nên giải mã JPEG gốc là nút cổ chai: R02 (4.749 ảnh IDD, không cache) chạy 1,5 it/s khi còn mosaic, 2,2 it/s sau khi tắt mosaic. `WORKERS = 4` trên Kaggle.
+- Optimizer ghim `AdamW, lr0=0.000667` (đúng cái `auto` chọn ở R02). Để `auto` thì từ 10.000 bước (= ceil(ảnh/64) × epoch) Ultralytics đổi sang MuSGD lr0=0,01 và bỏ qua `lr0` đặt tay.
 - Ai có GPU mạnh hơn (Colab Pro A100/L4, GPU thuê) → báo Lộc ngay; dành cho teacher và lượt dài.
 
 ## 3. Thiết kế ablation

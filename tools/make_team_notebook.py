@@ -45,7 +45,8 @@ PRESET = "ablation"  #@param ["smoke", "ablation", "final"]
 EXTRA_TRAIN_ARGS = {
     # Thay đổi của lượt này, ghép đè lên preset. Ablation: mỗi lượt chỉ đổi MỘT nhóm (lý do ở markdown Bước 3).
     # "copy_paste": 0.3, "copy_paste_mode": "flip",   # A7: dán instance lớp hiếm
-    # "hsv_v": 0.5,                                    # A8: ánh sáng / đêm (close_mosaic=10 là mặc định sẵn của Ultralytics)
+    # "cls_pw": 0.5,                                   # loss phân lớp nặng hơn cho lớp ít ảnh (Bicycle, Cyclist, Traffic light)
+    # "hsv_v": 0.5,                                   # A8: ánh sáng / đêm (close_mosaic=10 là mặc định sẵn của Ultralytics)
     # "mask_ratio": 2,                                 # mask GT phân giải cao hơn khi train -> biên sát hơn
     # "scale": 0.7,                                    # biến thiên tỉ lệ mạnh hơn
 }
@@ -73,8 +74,13 @@ PATIENCE = _P["patience"]
 TRAIN_IMGSZ = 640  # KHÔNG đổi
 IN_KAGGLE = Path("/kaggle/working").exists()
 WORKERS = 4 if IN_KAGGLE else 2
-CACHE = "ram" if IN_KAGGLE else False   # Kaggle ~29 GB RAM đủ cho ~8-9k ảnh @640; thiếu RAM thì đặt False
+CACHE = "ram"   # giữ ảnh đã thu về 640 trong RAM: không giải mã lại JPEG gốc (1920x1080 trở lên) mỗi epoch.
+# Ultralytics tự đo RAM trước, không đủ (cần gấp 2 lần) thì tự bỏ cache và chỉ in cảnh báo, không lỗi.
 PLOTS = True
+# Ghim optimizer. Để 'auto' thì Ultralytics chọn theo số bước = ceil(số ảnh train / 64) x epoch: dưới 10000 bước là
+# AdamW(lr0=0.000667), từ 10000 bước trở lên là MuSGD(lr0=0.01), và BỎ QUA lr0 đội đặt. Bộ dữ liệu lớn hoặc nhiều epoch
+# sẽ âm thầm đổi optimizer, các lượt không còn so sánh được. Giá trị dưới đây đúng bằng cái 'auto' đã chọn ở R02.
+OPTIM_ARGS = dict(optimizer="AdamW", lr0=0.000667, momentum=0.9)
 
 # ---- Dữ liệu và báo cáo ----
 VAL_RATIO = 0.2                  # chỉ dùng khi dữ liệu CHƯA chia sẵn (lượt thật luôn dùng gold val)
@@ -105,23 +111,26 @@ PARAMS = dict(TEAM_ID=TEAM_ID, MODEL_SIZE=MODEL_SIZE, MODEL_WEIGHTS=MODEL_WEIGHT
               TRAIN_IMGSZ=TRAIN_IMGSZ, WORKERS=WORKERS, CACHE=CACHE, VAL_RATIO=VAL_RATIO, MIN_TRAIN_INSTANCES=MIN_TRAIN_INSTANCES,
               MAX_IMBALANCE_RATIO=MAX_IMBALANCE_RATIO, DUP_HAMMING_MAX=DUP_HAMMING_MAX, REMOVE_LEAKAGE_FROM_TRAIN=REMOVE_LEAKAGE_FROM_TRAIN,
               SELFCHECK_MAX_IMAGES=SELFCHECK_MAX_IMAGES, CONF_SHOW=CONF_SHOW,
-              RUN_NAME=RUN_NAME, PRESET=PRESET, TRAIN_EXTRA=TRAIN_EXTRA, INIT_WEIGHTS=INIT_WEIGHTS, RESUME=RESUME)'''
+              RUN_NAME=RUN_NAME, PRESET=PRESET, TRAIN_EXTRA=TRAIN_EXTRA, INIT_WEIGHTS=INIT_WEIGHTS, RESUME=RESUME,
+              OPTIM_ARGS=OPTIM_ARGS)'''
 
 STEP3_MD = r'''
 ## Bước 3. Huấn luyện (đội 71: preset + thay đổi của lượt)
 
-Mặc định Ultralytics đã là công thức tốt cho YOLO26 (optimizer `auto`, mosaic, `close_mosaic=10`, `hsv_v=0.4`, `fliplr=0.5`, EMA). Preset chỉ đổi epoch / patience,
-`final` thêm `cos_lr` và lưu checkpoint mỗi 10 epoch. `last.pt` được chép sang thư mục output **sau mỗi epoch** để `RESUME = True` chạy tiếp được khi phiên bị ngắt.
+Mặc định Ultralytics đã là công thức tốt cho YOLO26 (mosaic, `close_mosaic=10`, `hsv_v=0.4`, `fliplr=0.5`, EMA). Riêng optimizer được **ghim**
+`AdamW, lr0=0.000667` (`OPTIM_ARGS` ở ô Tham số): để `auto` thì bộ dữ liệu lớn hoặc nhiều epoch sẽ tự đổi sang MuSGD và mọi `lr0` đặt tay bị bỏ qua.
+Preset chỉ đổi epoch / patience, `final` thêm `cos_lr` và lưu checkpoint mỗi 10 epoch. `last.pt` được chép sang thư mục output **sau mỗi epoch** để `RESUME = True` chạy tiếp được khi phiên bị ngắt.
 
 | Thử qua `EXTRA_TRAIN_ARGS` | Vì sao có thể giúp | Rủi ro |
 |---|---|---|
 | `copy_paste=0.3, copy_paste_mode="flip"` | Có polygon nên dán được instance lớp hiếm (Bus, Other vehicle, Bicycle, Cyclist); điểm là trung bình đều 11 lớp | Vị trí dán phi thực tế |
+| `cls_pw=0.5` | Nhân loss phân lớp theo (1/số instance)^0,5: lớp hiếm (Bicycle, Cyclist, Traffic light) được học nặng hơn | Lớp đông (Car) có thể tụt nhẹ |
 | `mask_ratio=2` | Mask GT khi train ít bị thu nhỏ (mặc định 4) → biên sát hơn, có ích ở IoU 0,75–0,95 | Chậm hơn, tốn VRAM |
 | `hsv_v=0.5` | Đa dạng độ sáng (đêm, ngược sáng) | Ít |
 | `scale=0.7` | Xe máy xa/gần khác cỡ nhiều | Vật nhỏ bị thu quá mức |
 
 Không nên: `imgsz` khác 640, `freeze`, `half`, `rect=True`. Fine-tune 2 giai đoạn: lượt 2 đặt `INIT_WEIGHTS` = `best.pt` lượt 1, dữ liệu nặng ảnh Việt Nam,
-`EXTRA_TRAIN_ARGS={"lr0": 0.002, "warmup_epochs": 0}`, 15–20 epoch. Ước lượng thời gian là thô (T4); tốc độ thật xem ở epoch đầu.
+`EXTRA_TRAIN_ARGS={"lr0": 0.0002, "warmup_epochs": 0}` (khoảng 1/3 lr0 gốc), 15–20 epoch. Ước lượng thời gian là thô (T4); tốc độ thật xem ở epoch đầu.
 '''
 
 STEP3_CELL = r'''from ultralytics import YOLO
@@ -142,6 +151,7 @@ TRAIN_ARGS = dict(
     name=RUN_NAME,
     exist_ok=True,
     save_period=SAVE_PERIOD,
+    **OPTIM_ARGS,           # AdamW ghim cố định (lý do ở ô Tham số)
 )
 TRAIN_ARGS.update(TRAIN_EXTRA)  # preset + thay đổi của lượt (ô Tham số)
 print("Thêm so với mặc định:", TRAIN_EXTRA or "không")
