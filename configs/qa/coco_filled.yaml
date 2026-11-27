@@ -1,0 +1,5 @@
+profile: source
+note: COCO sau khi teacher gán bù Sign / Traffic light (pseudo_label.py --fill-classes 9 10).
+absent_ok: [Other vehicle]
+classes:
+  Sign: {min: 200}             # gán bù thất bại -> mô hình học rằng biển báo là nền: chặn

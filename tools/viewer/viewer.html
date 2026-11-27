@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboTaxi Dataset Viewer</title>
+<style>
+  :root { --bg:#14161a; --panel:#1d2026; --line:#2e323a; --text:#e6e8eb; --muted:#9aa1ab; --accent:#4c9aff;
+          --err:#ff5c5c; --warn:#ffb020; --ok:#3ecf8e; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.45 system-ui, "Segoe UI", sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { display:flex; gap:10px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--panel); position:relative; }
+  header h1 { font-size:14px; margin:0 6px 0 0; white-space:nowrap; }
+  main { flex:1; display:flex; min-height:0; }
+  aside { width:290px; border-right:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  aside .f { padding:10px; display:grid; gap:6px; border-bottom:1px solid var(--line); }
+  label.row { display:flex; justify-content:space-between; gap:6px; align-items:center; color:var(--muted); }
+  select, input[type=text] { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:5px; padding:4px 6px; width:170px; font:inherit; }
+  header select { width:auto; max-width:360px; }
+  #list { flex:1; overflow:auto; margin:0; padding:0; list-style:none; }
+  #list li { padding:3px 10px; cursor:pointer; font-family:ui-monospace, Consolas, monospace; font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+  #list li .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #list li.on { background:#4c9aff33; color:var(--text); }
+  #list li:hover { background:#ffffff0d; }
+  .dot { width:8px; height:8px; border-radius:50%; flex:none; }
+  .count { padding:6px 10px; color:var(--muted); border-bottom:1px solid var(--line); }
+  .stats { border-top:1px solid var(--line); max-height:220px; overflow:auto; }
+  .center { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; padding:7px 12px; border-bottom:1px solid var(--line); }
+  .toolbar label { display:flex; gap:4px; align-items:center; cursor:pointer; }
+  .chips { display:flex; flex-wrap:wrap; gap:4px; padding:6px 12px; border-bottom:1px solid var(--line); }
+  .chip { border:1px solid var(--line); border-radius:12px; padding:1px 8px 1px 6px; cursor:pointer; font-size:12px; display:flex; gap:5px; align-items:center; color:var(--text); background:none; }
+  .chip.off { opacity:.35; text-decoration:line-through; }
+  .btn { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:5px; padding:4px 10px; cursor:pointer; font:inherit; }
+  .btn:hover { border-color:var(--accent); }
+  .btn.ok.on { background:#3ecf8e33; border-color:var(--ok); }
+  .btn.bad.on { background:#ff5c5c33; border-color:var(--err); }
+  .stage { flex:1; overflow:hidden; display:flex; justify-content:center; align-items:center; min-height:0; cursor:grab; user-select:none; }
+  .stage.drag { cursor:grabbing; }
+  .wrap { position:relative; }
+  canvas { display:block; transform-origin:0 0; }
+  .zoomlbl { min-width:48px; text-align:center; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .meta { padding:6px 12px; color:var(--muted); border-top:1px solid var(--line); min-height:30px; }
+  .side2 { width:400px; border-left:1px solid var(--line); background:var(--panel); overflow:auto; }
+  .box { padding:10px 12px; border-bottom:1px solid var(--line); display:grid; gap:6px; }
+  .box h3 { margin:0; font-size:12px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:3px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { position:sticky; top:0; background:var(--panel); color:var(--muted); font-weight:600; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.lab { cursor:pointer; }
+  tr.lab:hover, tr.lab.on { background:#4c9aff26; }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; }
+  .muted { color:var(--muted); }
+  .tag { display:inline-block; padding:0 5px; border-radius:3px; font-size:11px; margin:1px 2px 1px 0; font-family:ui-monospace, Consolas, monospace; }
+  .tag.error { background:#ff5c5c2e; color:#ff9b9b; }
+  .tag.warn { background:#ffb0202e; color:#ffd07a; }
+  .tag.waived { background:#ffffff14; color:var(--muted); }
+  .tag.audit { background:#b06cff2e; color:#d5b3ff; }
+  .badge { padding:3px 9px; border-radius:5px; cursor:pointer; border:1px solid var(--line); white-space:nowrap; }
+  .badge.FAIL { border-color:var(--err); color:#ff9b9b; }
+  .badge.PASS { border-color:var(--ok); color:#8de8bf; }
+  .badge.PASS_AUTO { border-color:var(--warn); color:#ffd07a; }
+  #qaPanel { position:absolute; top:42px; left:12px; z-index:5; background:var(--panel); border:1px solid var(--line); border-radius:6px; max-height:70vh; overflow:auto; width:560px; box-shadow:0 8px 30px #0008; }
+  #qaPanel tr { cursor:pointer; }
+  #qaPanel tr:hover { background:#ffffff0d; }
+  #tip { position:fixed; pointer-events:none; background:#000c; color:#fff; padding:3px 7px; border-radius:4px; font-size:12px; display:none; z-index:9; }
+  .hidden { display:none !important; }
+  .flagline { cursor:pointer; padding:2px 0; font-size:12px; }
+  .flagline:hover { background:#ffffff0d; }
+  .msg { font-size:12px; min-height:16px; }
+  kbd { background:#ffffff14; border-radius:3px; padding:0 4px; font-size:11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RoboTaxi Dataset Viewer</h1>
+  <select id="dsSel"></select>
+  <button class="btn" id="refresh" title="Đọc lại dữ liệu và kết quả QA từ đĩa">↻ Tải lại</button>
+  <span class="badge hidden" id="qaBadge" title="Bấm để xem các mã kiểm tra"></span>
+  <span class="muted" style="margin-left:auto;white-space:nowrap">Lăn chuột: zoom · Kéo: di chuyển · Double-click: vừa khung · <kbd>←</kbd><kbd>→</kbd> ảnh · <kbd>O</kbd>/<kbd>B</kbd> chấm · <kbd>N</kbd> mẫu chưa chấm · <kbd>H</kbd> ảnh gốc</span>
+  <div id="qaPanel" class="hidden"></div>
+</header>
+
+<main>
+  <aside>
+    <div class="f">
+      <label class="row">Split <select id="fSplit"><option value="">(tất cả)</option></select></label>
+      <label class="row">Chứa lớp <select id="fCls"><option value="">(tất cả)</option><option value="__bg">— ảnh nền (0 nhãn)</option></select></label>
+      <label class="row">Cờ QA <select id="fQa"><option value="">(tất cả)</option></select></label>
+      <label class="row">Mẫu người xem <select id="fSm">
+        <option value="">(tất cả)</option><option value="in">trong mẫu</option><option value="todo">chưa chấm</option>
+        <option value="ok">ok</option><option value="bad">bad</option></select></label>
+      <label class="row">Nghi vấn L6 <select id="fAud"><option value="">(tất cả)</option></select></label>
+      <label class="row">Tên ảnh <input type="text" id="fName" placeholder="tìm theo tên…"></label>
+      <label class="row">Sắp xếp <select id="fSort">
+        <option value="name">tên</option><option value="inst">nhiều vật nhất</option><option value="flags">nhiều cờ nhất</option></select></label>
+    </div>
+    <div class="count" id="count">Đang tải…</div>
+    <ul id="list"></ul>
+    <div class="stats"><table><thead><tr><th>Lớp (ảnh đang lọc)</th><th class="num">instance</th><th class="num">ảnh</th></tr></thead><tbody id="stats"></tbody></table></div>
+  </aside>
+
+  <div class="center">
+    <div class="toolbar">
+      <label title="Ẩn mọi lớp phủ để nhìn rõ ảnh gốc (phím H)"><input type="checkbox" id="tRaw"> <b>Ảnh gốc</b> <kbd>H</kbd></label>
+      <label><input type="checkbox" id="tFill" checked> Tô mask</label>
+      <label><input type="checkbox" id="tStroke" checked> Viền mask</label>
+      <label><input type="checkbox" id="tText" checked> Tên lớp</label>
+      <label><input type="checkbox" id="tFlag" checked> Viền vật bị cờ QA</label>
+      <label><input type="checkbox" id="tOnlyFlag"> Chỉ vật bị cờ</label>
+      <label><input type="checkbox" id="tVert"> Đỉnh polygon</label>
+      <label id="tPredL" class="hidden"><input type="checkbox" id="tPred"> Dự đoán L6</label>
+      <label>Độ đậm <input type="range" id="tAlpha" min="0" max="90" value="40"></label>
+      <button class="btn" id="prev">◀</button><button class="btn" id="next">▶</button>
+      <span style="display:flex;gap:4px;align-items:center;margin-left:auto">
+        <button class="btn" id="zOut">−</button><span class="zoomlbl" id="zLbl">100%</span><button class="btn" id="zIn">+</button><button class="btn" id="zFit">Vừa khung</button>
+      </span>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="stage"><div class="wrap"><canvas id="cv" width="1280" height="720"></canvas></div></div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <div class="side2">
+    <div class="box hidden" id="smBox">
+      <h3>Mẫu người xem</h3>
+      <div id="smReason" class="muted"></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="btn ok" id="smOk">✓ ok <kbd>O</kbd></button>
+        <button class="btn bad" id="smBad">✗ bad <kbd>B</kbd></button>
+        <select id="smType" style="width:120px"><option value="">loại lỗi…</option></select>
+        <button class="btn" id="smClear" title="Xóa verdict">xóa</button>
+      </div>
+      <input type="text" id="smNote" placeholder="ghi chú (dòng nhãn, mô tả ngắn)" style="width:100%">
+      <div class="msg" id="smMsg"></div>
+    </div>
+    <div class="box hidden" id="flagBox"><h3>Cờ QA của ảnh</h3><div id="flagList"></div></div>
+    <div class="box hidden" id="audBox"><h3>Nghi vấn L6 (label_audit)</h3><div id="audList"></div></div>
+    <table><thead><tr><th>Dòng</th><th>Lớp</th><th class="num">bbox px</th><th class="num">% ảnh</th><th>Cờ</th></tr></thead><tbody id="tbl"></tbody></table>
+  </div>
+</main>
+<div id="tip"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const SHORT = ['car', 'bus', 'truck', 'other', 'moto', 'MOTO+P', 'bike', 'BIKE+P', 'ped', 'sign', 'light'];
+const AUDIT_NAMES = { missing_label: 'sót nhãn', wrong_class: 'sai lớp', loose_boundary: 'biên lệch', spurious_label: 'nhãn thừa' };
+const LIST_MAX = 3000;
+let META = null, DS = null, view = [], cur = -1, LAB = null, selected = -1, shapes = [], U = 1;
+const hidden = new Set();
+const img = new Image();
+let W = 1280, H = 720;
+
+// ---------------------------------------------------------------- zoom / pan (như bdd_viewer, kích thước ảnh động)
+function makeZoom(canvas, redraw) {
+  const stage = canvas.closest('.stage');
+  const z = { s: 1, x: 0, y: 0, k: 1, cssW: W, dragged: false };
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10) return;
+    z.cssW = Math.max(100, Math.min(r.width - 24, (r.height - 24) * W / H));
+    canvas.style.width = z.cssW + 'px'; canvas.style.height = z.cssW * H / W + 'px';
+  }
+  function apply(doRedraw = true) {
+    canvas.style.transform = `translate(${z.x}px, ${z.y}px) scale(${z.s})`;
+    const need = z.cssW * z.s * (window.devicePixelRatio || 1) / W;
+    const k = Math.min(4, Math.max(1, Math.ceil(need * 2) / 2));
+    if (k !== z.k || canvas.width !== Math.round(W * k)) { z.k = k; canvas.width = Math.round(W * k); canvas.height = Math.round(H * k); doRedraw = true; }
+    $('zLbl').textContent = Math.round(z.s * 100) + '%';
+    if (doRedraw) redraw();
+  }
+  function zoomAt(cx, cy, f) {
+    const r = canvas.getBoundingClientRect();
+    const lx = (cx - r.left) / z.s, ly = (cy - r.top) / z.s;
+    const ns = Math.min(30, Math.max(1, z.s * f));
+    z.x += lx * (z.s - ns); z.y += ly * (z.s - ns); z.s = ns;
+    if (ns === 1) { z.x = 0; z.y = 0; }
+    apply();
+  }
+  function reset() { z.s = 1; z.x = 0; z.y = 0; fit(); apply(); }
+  stage.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.25 : 0.8); }, { passive: false });
+  let start = null;
+  stage.addEventListener('mousedown', (e) => { if (e.button !== 0) return; start = { mx: e.clientX, my: e.clientY, x: z.x, y: z.y }; z.dragged = false; });
+  window.addEventListener('mousemove', (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.mx, dy = e.clientY - start.my;
+    if (!z.dragged && Math.hypot(dx, dy) < 4) return;
+    z.dragged = true; stage.classList.add('drag');
+    z.x = start.x + dx; z.y = start.y + dy; apply(false);
+  });
+  window.addEventListener('mouseup', () => { start = null; stage.classList.remove('drag'); });
+  canvas.addEventListener('click', (e) => { if (z.dragged) { e.stopImmediatePropagation(); z.dragged = false; } }, true);
+  stage.addEventListener('dblclick', reset);
+  const center = (f) => { const r = stage.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, f); };
+  $('zIn').onclick = () => center(1.5); $('zOut').onclick = () => center(1 / 1.5); $('zFit').onclick = reset;
+  window.addEventListener('resize', () => { fit(); apply(); });
+  z.reset = reset;
+  return z;
+}
+function canvasXY(e, c) { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
+
+const cv = $('cv'), ctx = cv.getContext('2d');
+const zd = makeZoom(cv, () => draw());
+
+// ---------------------------------------------------------------- tải dữ liệu
+async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error((await r.json()).error || r.statusText); return r.json(); }
+
+async function init() {
+  META = await getJSON('/api/meta');
+  META.datasets.forEach(d => $('dsSel').add(new Option(d.name, d.id)));
+  META.classes.forEach((c, i) => $('fCls').add(new Option(`${i} ${c}`, String(i)), $('fCls').options[1]));
+  META.error_types.forEach(t => $('smType').add(new Option(t, t)));
+  Object.entries(AUDIT_NAMES).forEach(([k, v]) => $('fAud').add(new Option(`${v} (${k})`, k)));
+  $('fAud').add(new Option('có bất kỳ nghi vấn', '__any'), $('fAud').options[1]);
+  $('chips').innerHTML = META.classes.map((c, i) =>
+    `<button class="chip" data-c="${i}"><span class="sw" style="background:${META.colors[i]};margin:0"></span>${i} ${esc(c)}</button>`).join('');
+  document.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    const c = +b.dataset.c; hidden.has(c) ? hidden.delete(c) : hidden.add(c); b.classList.toggle('off', hidden.has(c)); draw();
+  });
+  const hash = new URLSearchParams(location.hash.slice(1));   // link trực tiếp: #ds=1&k=all/<tên ảnh>
+  let saved = hash.get('ds'); if (!saved) { try { saved = localStorage.getItem('rtv.ds'); } catch (e) {} }
+  if (saved && META.datasets.some(d => d.id === saved)) $('dsSel').value = saved;
+  await loadDataset(false, hash.get('k'));
+}
+
+async function loadDataset(refresh, wantKey) {
+  const id = $('dsSel').value;
+  try { localStorage.setItem('rtv.ds', id); } catch (e) {}
+  $('count').textContent = 'Đang quét dataset…';
+  DS = await getJSON(`/api/index?ds=${id}${refresh ? '&refresh=1' : ''}`);
+  // split
+  const splits = [...new Set(DS.images.map(r => r.s))];
+  $('fSplit').length = 1; splits.forEach(s => $('fSplit').add(new Option(s, s)));
+  // mã QA
+  const cnt = {};
+  DS.images.forEach(r => r.q.forEach(c => cnt[c] = (cnt[c] || 0) + 1));
+  const lv = (c) => DS.qa?.checks?.[c]?.level;
+  $('fQa').length = 1;
+  if (Object.keys(cnt).length) {
+    $('fQa').add(new Option('— có lỗi (error)', '__err')); $('fQa').add(new Option('— có cờ bất kỳ', '__any'));
+    Object.entries(cnt).sort((a, b) => (lv(a[0]) === 'error' ? 0 : 1) - (lv(b[0]) === 'error' ? 0 : 1) || b[1] - a[1])
+      .forEach(([c, n]) => $('fQa').add(new Option(`${lv(c) === 'error' ? '● ' : ''}${c} (${n} ảnh)`, c)));
+  }
+  $('fQa').disabled = !DS.has_flags; $('fSm').disabled = !DS.has_sample; $('fAud').disabled = !DS.has_audit;
+  $('tPredL').classList.toggle('hidden', !DS.has_preds);
+  renderBadge();
+  const keep = wantKey || (refresh && cur >= 0 ? view[cur]?.k : null);
+  applyFilter(!keep);
+  if (keep) { const i = view.findIndex(r => r.k === keep); show(i >= 0 ? i : 0); }
+}
+
+function renderBadge() {
+  const b = $('qaBadge'), q = DS.qa;
+  b.classList.remove('hidden', 'FAIL', 'PASS', 'PASS_AUTO');
+  if (!q) { b.textContent = 'chưa chạy qa_check'; b.title = 'python tools/qa_check.py --data ' + DS.path; $('qaPanel').innerHTML = ''; return; }
+  const a = q.human_audit;
+  const sm = a ? (a.sample_size ? `mẫu ${a.ok + a.bad}/${a.sample_size} đã chấm, ${a.bad} bad` : 'mẫu rỗng') : 'chưa có mẫu';
+  b.classList.add(q.verdict); b.textContent = `${q.verdict} · ${q.errors} lỗi · ${q.warnings} cảnh báo · ${sm}`;
+  b.title = `profile ${q.profile} · chạy lúc ${q.created_at} (UTC). Chấm xong thì chạy lại qa_check.py để cập nhật kết luận.`;
+  const rows = Object.entries(q.checks).filter(([, v]) => v.count || v.waived).map(([k, v]) =>
+    `<tr data-c="${esc(k)}"><td><span class="tag ${v.level}">${v.level}</span></td><td><b>${esc(k)}</b><br><span class="muted">${esc(v.message)}</span></td><td class="num">${v.count}${v.waived ? ` <span class="muted">(+${v.waived} miễn)</span>` : ''}</td></tr>`).join('');
+  $('qaPanel').innerHTML = `<table><thead><tr><th>Mức</th><th>Mã (bấm để lọc ảnh)</th><th class="num">Số mục</th></tr></thead><tbody>${rows || '<tr><td colspan=3 class="muted">Không có cờ nào</td></tr>'}</tbody></table>`;
+  $('qaPanel').querySelectorAll('tr[data-c]').forEach(tr => tr.onclick = () => {
+    const c = tr.dataset.c;
+    if ([...$('fQa').options].some(o => o.value === c)) { $('fQa').value = c; applyFilter(true); }
+    $('qaPanel').classList.add('hidden');
+  });
+}
+$('qaBadge').onclick = (e) => { e.stopPropagation(); if (DS?.qa) $('qaPanel').classList.toggle('hidden'); };
+document.addEventListener('click', (e) => { if (!$('qaPanel').contains(e.target)) $('qaPanel').classList.add('hidden'); });
+
+// ---------------------------------------------------------------- lọc + danh sách
+const total = (r) => r.c.reduce((a, b) => a + b, 0);
+function smState(r) { if (!r.sm) return ''; const v = (r.sm.verdict || '').trim().toLowerCase(); return v === 'ok' ? 'ok' : v === 'bad' ? 'bad' : 'todo'; }
+
+function applyFilter(resetSel) {
+  const sp = $('fSplit').value, cl = $('fCls').value, qa = $('fQa').value, sm = $('fSm').value, au = $('fAud').value;
+  const nm = $('fName').value.trim().toLowerCase(), sort = $('fSort').value;
+  view = DS.images.filter(r => {
+    if (sp && r.s !== sp) return false;
+    if (cl === '__bg' ? total(r) > 0 : cl && !r.c[+cl]) return false;
+    if (qa === '__err' ? !r.e : qa === '__any' ? !r.q.length : qa && !r.q.includes(qa)) return false;
+    if (sm && (sm === 'in' ? !r.sm : smState(r) !== sm)) return false;
+    if (au === '__any' ? !r.a.length : au && !r.a.includes(au)) return false;
+    if (nm && !r.n.toLowerCase().includes(nm)) return false;
+    return true;
+  });
+  if (sort === 'inst') view.sort((a, b) => total(b) - total(a));
+  else if (sort === 'flags') view.sort((a, b) => (b.e - a.e) || (b.q.length - a.q.length));
+  else view.sort((a, b) => a.k < b.k ? -1 : 1);
+  $('count').textContent = `${view.length} / ${DS.images.length} ảnh` + (view.length > LIST_MAX ? ` (hiện ${LIST_MAX} ảnh đầu)` : '');
+  const frag = document.createDocumentFragment();
+  view.slice(0, LIST_MAX).forEach((r, i) => {
+    const li = document.createElement('li'); li.dataset.i = i;
+    li.innerHTML = liHTML(r);
+    li.onclick = () => show(i);
+    frag.appendChild(li);
+  });
+  $('list').innerHTML = ''; $('list').appendChild(frag);
+  renderStats();
+  if (resetSel || cur >= view.length) { if (view.length) show(0); else clearView(); }
+}
+function liHTML(r) {
+  const dot = r.e ? 'var(--err)' : r.q.length ? 'var(--warn)' : 'transparent';
+  const s = smState(r), smMark = s === 'ok' ? '<span style="color:var(--ok)">✓</span>' : s === 'bad' ? '<span style="color:var(--err)">✗</span>' : s === 'todo' ? '<span title="trong mẫu, chưa chấm">○</span>' : '';
+  const aud = r.a.length ? '<span style="color:#d5b3ff" title="có nghi vấn L6">◆</span>' : '';
+  return `<span class="dot" style="background:${dot}"></span><span class="nm">${r.s !== 'all' ? r.s + '/' : ''}${esc(r.n)}</span>${aud}${smMark}<span>${total(r)}</span>`;
+}
+function renderStats() {
+  const inst = Array(META.classes.length).fill(0), imgs = Array(META.classes.length).fill(0);
+  view.forEach(r => r.c.forEach((n, c) => { inst[c] += n; if (n) imgs[c]++; }));
+  $('stats').innerHTML = META.classes.map((c, i) =>
+    `<tr><td><span class="sw" style="background:${META.colors[i]}"></span>${i} ${esc(c)}</td><td class="num">${inst[i].toLocaleString('vi')}</td><td class="num">${imgs[i].toLocaleString('vi')}</td></tr>`).join('');
+}
+['fSplit', 'fCls', 'fQa', 'fSm', 'fAud', 'fSort'].forEach(id => $(id).onchange = () => applyFilter(true));
+$('fName').oninput = () => applyFilter(true);
+$('dsSel').onchange = () => loadDataset(false);
+$('refresh').onclick = () => loadDataset(true);
+
+function clearView() { cur = -1; LAB = null; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); $('tbl').innerHTML = ''; $('meta').textContent = ''; ['smBox', 'flagBox', 'audBox'].forEach(b => $(b).classList.add('hidden')); }
+
+// ---------------------------------------------------------------- một ảnh
+let reqId = 0;
+async function show(i) {
+  if (i < 0 || i >= view.length) return;
+  cur = i; selected = -1;
+  document.querySelectorAll('#list li.on').forEach(li => li.classList.remove('on'));
+  const li = $('list').querySelector(`li[data-i="${i}"]`); if (li) { li.classList.add('on'); li.scrollIntoView({ block: 'nearest' }); }
+  const r = view[i], my = ++reqId;
+  history.replaceState(null, '', `#ds=${DS.id}&k=${encodeURIComponent(r.k)}`);
+  const lab = await getJSON(`/api/label?ds=${DS.id}&k=${encodeURIComponent(r.k)}`);
+  if (my !== reqId) return;
+  LAB = lab;
+  const onload = () => {
+    if (my !== reqId) return;
+    const sizeChanged = img.naturalWidth !== W || img.naturalHeight !== H;
+    W = img.naturalWidth; H = img.naturalHeight;
+    prepShapes();
+    if (sizeChanged) zd.reset(); else draw();
+    renderSide();
+  };
+  const src = `/img?ds=${DS.id}&p=${encodeURIComponent(lab.img)}`;
+  img.onload = onload;
+  img.onerror = () => { if (my === reqId) $('meta').textContent = 'Không tải được ảnh ' + lab.img; };
+  if (img.src.endsWith(src) && img.complete && img.naturalWidth) onload(); else img.src = src;
+  const n = lab.lines.length, cls = [...new Set(lab.lines.map(l => SHORT[l.c] ?? l.c))].join(', ');
+  $('meta').textContent = `${r.k} · ${n} instance${n ? ' (' + cls + ')' : ' · ảnh nền'} · ${r.q.length ? 'cờ: ' + r.q.join(', ') : 'không có cờ QA'}`;
+}
+
+function polyArea(p) { let a = 0; for (let i = 0, n = p.length / 2; i < n; i++) { const j = (i + 1) % n; a += p[2 * i] * W * p[2 * j + 1] * H - p[2 * j] * W * p[2 * i + 1] * H; } return Math.abs(a) / 2; }
+function prepShapes() {
+  shapes = LAB.lines.map(l => {
+    const path = new Path2D();
+    for (let i = 0; i < l.p.length; i += 2) (i ? path.lineTo : path.moveTo).call(path, l.p[i] * W, l.p[i + 1] * H);
+    path.closePath();
+    const xs = l.p.filter((_, i) => i % 2 === 0).map(v => v * W), ys = l.p.filter((_, i) => i % 2).map(v => v * H);
+    const lf = LAB.line_flags[l.i] || [];
+    return { l, path, area: polyArea(l.p), bw: Math.max(...xs) - Math.min(...xs) + 1, bh: Math.max(...ys) - Math.min(...ys) + 1,
+             x0: Math.min(...xs), y0: Math.min(...ys), flags: lf, lvl: lf.some(f => f[1] === 'error') ? 'error' : lf.some(f => f[1] === 'warn') ? 'warn' : lf.length ? 'waived' : '' };
+  });
+  shapes.sort((a, b) => b.area - a.area);   // vật lớn vẽ trước, vật nhỏ nằm trên (giống Ultralytics)
+  LAB.predShapes = (LAB.preds || []).map(p => {
+    const path = new Path2D();
+    for (let i = 0; i < p.p.length; i += 2) (i ? path.lineTo : path.moveTo).call(path, p.p[i] * W, p.p[i + 1] * H);
+    path.closePath();
+    return { p, path, x0: Math.min(...p.p.filter((_, i) => i % 2 === 0)) * W, y0: Math.min(...p.p.filter((_, i) => i % 2)) * H };
+  });
+}
+
+function visible(s) { return !hidden.has(s.l.c) && (!$('tOnlyFlag').checked || s.flags.length); }
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+  if (!LAB) return;
+  ctx.setTransform(zd.k, 0, 0, zd.k, 0, 0);
+  if (img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, W, H);
+  if ($('tRaw').checked) return;   // chế độ ảnh gốc: không vẽ gì đè lên ảnh
+  U = (W / (parseFloat(cv.style.width) || W)) / zd.s;   // nét có độ dày cố định trên màn hình
+  const alpha = $('tAlpha').value / 100, dim = selected >= 0, fill = $('tFill').checked;
+  for (const s of shapes) {
+    if (!visible(s)) continue;
+    const col = META.colors[s.l.c] || '#ccc', on = s.l.i === selected;
+    if (fill) { ctx.globalAlpha = dim && !on ? alpha * 0.25 : on ? Math.min(1, alpha + 0.25) : alpha; ctx.fillStyle = col; ctx.fill(s.path); }
+    ctx.globalAlpha = dim && !on ? 0.35 : 1;
+    if ($('tStroke').checked || on) { ctx.strokeStyle = col; ctx.lineWidth = (on ? 3 : 1.5) * U; ctx.stroke(s.path); }
+    if ($('tFlag').checked && s.lvl && s.lvl !== 'waived') {
+      ctx.setLineDash([6 * U, 4 * U]); ctx.strokeStyle = s.lvl === 'error' ? '#ff5c5c' : '#ffb020'; ctx.lineWidth = 2.5 * U; ctx.stroke(s.path); ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+    if ($('tVert').checked) {
+      ctx.fillStyle = '#fff';
+      for (let i = 0; i < s.l.p.length; i += 2) { ctx.beginPath(); ctx.arc(s.l.p[i] * W, s.l.p[i + 1] * H, 2.2 * U, 0, 7); ctx.fill(); }
+    }
+  }
+  if ($('tPred').checked && LAB.predShapes) {
+    for (const ps of LAB.predShapes) {
+      if (hidden.has(ps.p.c)) continue;
+      ctx.setLineDash([3 * U, 3 * U]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 * U; ctx.stroke(ps.path); ctx.setLineDash([]);
+      if ($('tText').checked) tag(`pred ${SHORT[ps.p.c]} ${ps.p.s != null ? ps.p.s.toFixed(2) : ''}`, ps.x0, ps.y0 + 18 * U, '#ffffff', true);
+    }
+  }
+  if ($('tText').checked) for (const s of shapes) {
+    if (!visible(s) || (dim && s.l.i !== selected)) continue;
+    tag(`${SHORT[s.l.c] ?? s.l.c} #${s.l.i}`, s.x0, s.y0, META.colors[s.l.c] || '#ccc');
+  }
+  document.querySelectorAll('#tbl tr').forEach(tr => tr.classList.toggle('on', +tr.dataset.i === selected));
+}
+function tag(text, x, y, color, outline) {
+  ctx.font = `600 ${12 * U}px system-ui`; const w = ctx.measureText(text).width + 8 * U, ty = Math.max(0, y - 17 * U);
+  if (outline) { ctx.fillStyle = '#000b'; ctx.fillRect(x, ty, w, 16 * U); ctx.fillStyle = color; }
+  else { ctx.fillStyle = color; ctx.fillRect(x, ty, w, 16 * U); ctx.fillStyle = '#000'; }
+  ctx.fillText(text, x + 4 * U, ty + 12 * U);
+}
+['tRaw', 'tFill', 'tStroke', 'tText', 'tFlag', 'tOnlyFlag', 'tVert', 'tPred', 'tAlpha'].forEach(id => $(id).oninput = draw);
+// nhớ lựa chọn hiển thị giữa các lần mở viewer
+const PREFS = ['tFill', 'tStroke', 'tText', 'tFlag', 'tVert', 'tAlpha'];
+try { const pr = JSON.parse(localStorage.getItem('rtv.prefs') || '{}');
+      PREFS.forEach(id => { if (id in pr) { if ($(id).type === 'checkbox') $(id).checked = pr[id]; else $(id).value = pr[id]; } }); } catch (e) {}
+PREFS.forEach(id => $(id).addEventListener('input', () => {
+  try { localStorage.setItem('rtv.prefs', JSON.stringify(Object.fromEntries(PREFS.map(k => [k, $(k).type === 'checkbox' ? $(k).checked : $(k).value])))); } catch (e) {}
+}));
+
+function hit(e) {
+  const [ix, iy] = canvasXY(e, cv), x = ix * zd.k, y = iy * zd.k;
+  ctx.setTransform(zd.k, 0, 0, zd.k, 0, 0);
+  return [...shapes].reverse().find(s => visible(s) && ctx.isPointInPath(s.path, x, y));   // vật nhỏ (nằm trên) trước
+}
+cv.addEventListener('click', (e) => { const s = hit(e); selected = s ? s.l.i : -1; draw(); document.querySelector('#tbl tr.on')?.scrollIntoView({ block: 'nearest' }); });
+const tip = $('tip');
+cv.addEventListener('mousemove', (e) => {
+  if (!LAB) return;
+  const s = hit(e);
+  if (!s) { tip.style.display = 'none'; return; }
+  tip.style.display = 'block'; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
+  tip.textContent = `#${s.l.i} ${META.classes[s.l.c] ?? s.l.c}` + (s.flags.length ? ' · ' + [...new Set(s.flags.map(f => f[0]))].join(', ') : '');
+});
+cv.addEventListener('mouseleave', () => tip.style.display = 'none');
+
+// ---------------------------------------------------------------- cột phải
+function renderSide() {
+  const area = W * H;
+  $('tbl').innerHTML = [...shapes].sort((a, b) => a.l.i - b.l.i).map(s =>
+    `<tr class="lab" data-i="${s.l.i}"><td>${s.l.i}</td><td><span class="sw" style="background:${META.colors[s.l.c] || '#ccc'}"></span>${esc(META.classes[s.l.c] ?? 'id ' + s.l.c)}<br><span class="muted">${s.l.p.length / 2} điểm</span></td>` +
+    `<td class="num">${Math.round(s.bw)}×${Math.round(s.bh)}</td><td class="num">${(100 * s.area / area).toFixed(2)}</td>` +
+    `<td>${[...new Map(s.flags.map(f => [f[0], f[1]])).entries()].map(([c, lv]) => `<span class="tag ${lv}">${esc(c)}</span>`).join('')}</td></tr>`).join('')
+    || '<tr><td colspan=5 class="muted">Ảnh nền: không có nhãn</td></tr>';
+  document.querySelectorAll('#tbl tr.lab').forEach(tr => {
+    tr.onmouseenter = () => { selected = +tr.dataset.i; draw(); };
+    tr.onclick = () => { selected = +tr.dataset.i; draw(); };
+  });
+  // cờ QA
+  const fl = LAB.flags || [];
+  $('flagBox').classList.toggle('hidden', !fl.length);
+  $('flagList').innerHTML = fl.map(([c, lv, item]) => {
+    const m = /\.txt:(\d+)/.exec(item);
+    return `<div class="flagline" data-i="${m ? m[1] : ''}"><span class="tag ${lv}">${esc(c)}</span> <span class="muted">${esc(shortItem(item))}</span></div>`;
+  }).join('');
+  $('flagList').querySelectorAll('.flagline').forEach(d => d.onclick = () => { if (d.dataset.i) { selected = +d.dataset.i; draw(); } });
+  // L6
+  const au = LAB.audit || [];
+  $('audBox').classList.toggle('hidden', !au.length);
+  $('audList').innerHTML = au.map(a => `<div class="flagline" data-i="${esc(a.gt_line)}"><span class="tag audit">${esc(AUDIT_NAMES[a.type] || a.type)}</span> ` +
+    `<span class="muted">${a.gt_line ? 'dòng ' + esc(a.gt_line) + ' ' : ''}${esc(a.gt_class)}${a.gt_class && a.pred_class ? ' → ' : ''}${esc(a.pred_class)}${a.conf ? ' · conf ' + esc(a.conf) : ''} · IoU ${esc(a.iou)}</span></div>`).join('')
+    + (DS.has_preds ? '<div class="muted" style="font-size:11px">Bật "Dự đoán L6" để xem viền dự đoán (trắng, nét đứt).</div>' : '');
+  $('audList').querySelectorAll('.flagline').forEach(d => d.onclick = () => { if (d.dataset.i) { selected = +d.dataset.i; draw(); } });
+  renderSample();
+}
+// "all/abc.txt:3 với all/abc.txt:5 (31%)" -> "dòng 3 với dòng 5 (31%)"
+function shortItem(item) { return item.split(LAB.key + '.txt:').join('dòng '); }
+
+// ---------------------------------------------------------------- chấm mẫu
+function renderSample() {
+  const sm = LAB.sample;
+  $('smBox').classList.toggle('hidden', !sm);
+  if (!sm) return;
+  const v = (sm.verdict || '').trim().toLowerCase();
+  $('smReason').innerHTML = `Lý do vào mẫu: <b>${esc(sm.reason)}</b>`;
+  $('smOk').classList.toggle('on', v === 'ok'); $('smBad').classList.toggle('on', v === 'bad');
+  $('smType').value = sm.error_type || ''; $('smNote').value = sm.note || '';
+  $('smMsg').textContent = v ? '' : 'Chưa chấm'; $('smMsg').style.color = '';
+}
+async function saveVerdict(verdict) {
+  if (!LAB?.sample) return;
+  const etype = $('smType').value;
+  if (verdict === 'bad' && !etype) { $('smMsg').textContent = 'Chọn loại lỗi trước khi chấm bad'; $('smMsg').style.color = 'var(--warn)'; $('smType').focus(); return; }
+  try {
+    const r = await fetch('/api/sample', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ds: DS.id, key: LAB.key, verdict, error_type: etype, note: $('smNote').value }) });
+    const res = await r.json();
+    if (!r.ok) throw new Error(res.error);
+    LAB.sample = res.row;
+    const rec = DS.images.find(x => x.k === LAB.key); if (rec) rec.sm = res.row;
+    const li = $('list').querySelector(`li[data-i="${cur}"]`); if (li && view[cur]) li.innerHTML = liHTML(view[cur]);
+    renderSample();
+    const done = DS.images.filter(x => x.sm && smState(x) !== 'todo').length, all = DS.images.filter(x => x.sm).length;
+    $('smMsg').textContent = `Đã lưu vào qa/sample.csv (${done}/${all} đã chấm)` + (done === all ? ' · chạy lại qa_check.py để ra kết luận' : '');
+    $('smMsg').style.color = 'var(--ok)';
+  } catch (e) { $('smMsg').textContent = 'Lỗi: ' + e.message; $('smMsg').style.color = 'var(--err)'; }
+}
+$('smOk').onclick = () => saveVerdict('ok');
+$('smBad').onclick = () => saveVerdict('bad');
+$('smClear').onclick = () => saveVerdict('');
+$('smType').onchange = () => { if ((LAB?.sample?.verdict || '').trim() === 'bad' || $('smType').value) saveVerdict('bad'); };
+$('smNote').onchange = () => { const v = (LAB?.sample?.verdict || '').trim(); if (v) saveVerdict(v); };
+function nextTodo() {
+  for (let k = 1; k <= view.length; k++) { const i = (cur + k) % view.length; if (smState(view[i]) === 'todo') return show(i); }
+  if (DS.images.some(r => smState(r) === 'todo')) { $('fSm').value = 'todo'; applyFilter(true); }
+}
+
+// ---------------------------------------------------------------- phím tắt
+$('prev').onclick = () => show(cur - 1); $('next').onclick = () => show(cur + 1);
+document.addEventListener('keydown', (e) => {
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.ctrlKey || e.metaKey) return;
+  if (e.key === 'ArrowRight') show(cur + 1);
+  else if (e.key === 'ArrowLeft') show(cur - 1);
+  else if (e.key === '0') zd.reset();
+  else if (e.key === 'h' || e.key === 'H') { $('tRaw').checked = !$('tRaw').checked; draw(); }
+  else if (e.key === 'o' || e.key === 'O') { if (LAB?.sample) saveVerdict('ok').then(nextTodo); }
+  else if (e.key === 'b' || e.key === 'B') { if (LAB?.sample) { $('smType').focus(); if ($('smType').value) saveVerdict('bad'); } }
+  else if (e.key === 'n' || e.key === 'N') nextTodo();
+  else if (e.key === 'Escape') { selected = -1; draw(); }
+});
+
+init().catch(e => { $('count').textContent = 'Lỗi: ' + e.message; });
+</script>
+</body>
+</html>

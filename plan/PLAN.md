@@ -12,6 +12,7 @@ Tài liệu này là bản kế hoạch chính. Các tài liệu chi tiết:
 | [`data_pipeline.md`](data_pipeline.md) | Đặc tả kỹ thuật: converter, ghép rider, raster/polygon, lọc, gộp, gán nhãn nháp | Lộc, Thắng, Long, Đạt |
 | [`class_mapping.md`](class_mapping.md) | Ánh xạ nhãn từng public dataset về 11 lớp | Thắng, Long |
 | [`labeling_sop.md`](labeling_sop.md) | Quy trình CVAT, gold val, duyệt nhãn, kiểm soát chất lượng | Cả đội (bắt buộc) |
+| [`qa_process.md`](qa_process.md) | Quy trình QA dữ liệu: ba cổng (nguồn, gold val, bộ gộp), chấm mẫu, xử lý FAIL, mô hình soi nhãn | Người phụ trách nguồn, Bình Anh, Lộc, Hưng |
 | [`conventions.md`](conventions.md) | Các ca khó đã chốt của đội (sổ quy ước sống) | Cả đội (bắt buộc) |
 | [`training_submission.md`](training_submission.md) | Ngân sách GPU, thiết kế ablation, công thức huấn luyện, chiến lược 20 lượt nộp, chọn 2 bài cuối | Lộc, Hưng |
 | [`presentation.md`](presentation.md) | Câu chuyện, dàn slide, số liệu cần thu thập dọc đường | Hưng, Lộc, cả đội |

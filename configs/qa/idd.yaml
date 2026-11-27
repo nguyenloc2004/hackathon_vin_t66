@@ -1,0 +1,7 @@
+profile: source
+note: IDD Segmentation (Long). Nhiều xe máy / autorickshaw; ảnh liên tiếp trong cùng chuỗi nên dup_within cao là bình thường.
+classes:
+  Motorcyclist: {min: 1000}
+  Other vehicle: {min: 500}    # autorickshaw -> Other vehicle
+severity:
+  dup_within: warn

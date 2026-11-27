@@ -90,8 +90,8 @@ Thuật toán chi tiết (điểm ghép, ngưỡng, unit test): [`data_pipeline.
 
 | Dataset | Link | License | Số ảnh dùng | Ghi chú lọc |
 |---|---|---|---|---|
-| Mapillary Vistas v2 | | CC BY-NC-SA 4.0 (kiểm tra lại) | | |
-| IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.676 (train + val) | 61.303 instances; loại 2.298 ảnh unmatched_rider; 167 ảnh nền; QA `PASS` (5/68 bad = 7%) |
+| Mapillary Vistas v2 | https://www.mapillary.com/dataset/vistas | CC BY-NC-SA 4.0 + Mapillary Research Use License (phi thương mại, không phát tán lại dataset) | 3.599 (1.877 val + 1.722 train, chọn theo điểm ưu tiên từ 2.200 ảnh train) | 51.220 instances; loại 123 ảnh val + 478 ảnh train (unmatched_rider / group_region); người trong tuk-tuk gộp vào Other vehicle, người trong ô tô/buýt/tải bỏ; qa_check PASS (mẫu 5/70 lỗi = 7%) |
+| IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.676 (train + val) | 61.303 instances; loại 2.298 ảnh unmatched_rider; 167 ảnh nền; người ngồi sau xe máy gộp vào Motorcyclist, người trong xe/tuk-tuk gộp vào xe; qa_check PASS (mẫu 5/68 lỗi = 7%) |
 | COCO 2017 | https://cocodataset.org | CC BY 4.0 (annotations) | 0 (đã khảo sát 1.365 ảnh, chốt bỏ) | Thiếu Other vehicle & Sign (chỉ có 94 stop sign), lệch góc máy dashcam |
 | Cityscapes | | (kiểm tra lại) | | |
 | Roboflow … | | | | |
