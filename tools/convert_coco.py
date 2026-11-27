@@ -10,7 +10,7 @@ COCO mask chồng nhau: vẽ theo diện tích giảm dần (vật nhỏ thườ
 
 Ví dụ:
     python tools/convert_coco.py --ann D:/data/coco/annotations/instances_train2017.json \
-        --images D:/data/coco/train2017 --out D:/data/converted/coco --max-images 3000
+        --images D:/data/coco/train2017 --out D:/data/converted/coco --max-images 1500
 """
 from __future__ import annotations
 

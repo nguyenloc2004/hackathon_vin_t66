@@ -42,7 +42,7 @@ python tools/convert_idd.py --root D:/data/IDD_Segmentation --split train --out 
 
 # COCO: chỉ ảnh đường phố; SAU ĐÓ bắt buộc gán nháp thêm biển báo (bước 3, --fill-classes)
 python tools/convert_coco.py --ann D:/data/coco/annotations/instances_train2017.json \
-    --images D:/data/coco/train2017 --out D:/data/converted/coco --max-images 3000
+    --images D:/data/coco/train2017 --out D:/data/converted/coco --max-images 1500   # plan: ≤ 1.500 ảnh, chỉ mở rộng nếu A2 cho thấy COCO giúp
 
 # Bộ YOLO-seg có sẵn (Roboflow, Kaggle). Tên lớp khác thì viết file map JSON: {"motorbike": "Motorcycle", "xe ba gac": "Other vehicle", "logo": null}
 python tools/import_yolo.py --src D:/data/raw/rf_hcm --out D:/data/converted/rf_hcm --prefix rfhcm --map maps/rf_hcm.json
