@@ -16,6 +16,7 @@ Tài liệu này là bản kế hoạch chính. Các tài liệu chi tiết:
 | [`conventions.md`](conventions.md) | Các ca khó đã chốt của đội (sổ quy ước sống) | Cả đội (bắt buộc) |
 | [`training_submission.md`](training_submission.md) | Ngân sách GPU, thiết kế ablation, công thức huấn luyện, chiến lược 20 lượt nộp, chọn 2 bài cuối | Lộc, Hưng |
 | [`presentation.md`](presentation.md) | Câu chuyện, dàn slide, số liệu cần thu thập dọc đường | Hưng, Lộc, cả đội |
+| [`system_and_data.md`](system_and_data.md) | Giải thích dữ liệu đang có (converted, gold val), sơ đồ hệ thống, các bước tới lượt train đầu | Cả đội, nhất là người mới |
 | [`experiment_log.md`](experiment_log.md) | Nhật ký dữ liệu, huấn luyện, nộp bài | Người chạy và người nộp |
 
 ---

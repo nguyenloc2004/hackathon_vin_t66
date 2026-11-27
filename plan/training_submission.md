@@ -4,10 +4,11 @@ Người phụ trách: **Quang Hưng** (chạy), **Lộc** (quyết định, n�
 
 ## 1. Ràng buộc không được phá
 
-- Chỉ sửa **ô tham số** và **Bước 3** của notebook. Bước 4 (xuất ONNX, kiểm tra, đóng gói) **giữ nguyên tuyệt đối**.
-- `TEAM_ID = 71` cho mọi lượt chạy; `TRAIN_IMGSZ = 640`; `MODEL_SIZE = "n"`.
-- Kaggle: bật GPU và **Internet** (để cài đúng phiên bản thư viện). Luôn đặt `DRIVE_OUTPUT_DIR` hoặc lưu output Kaggle.
-- Mỗi lượt chạy lưu: `best.pt`, `submission.zip`, `run_report.json`, ảnh lỗi Bước 5 → `Drive/runs/R{NN}_.../`.
+- Notebook của đội: [`notebooks/train_t66.ipynb`](../notebooks/train_t66.ipynb), sinh bằng [`tools/make_team_notebook.py`](../tools/make_team_notebook.py) từ notebook BTC [`docs/train_and_export.ipynb`](../docs/train_and_export.ipynb). Chỉ **ô tham số**, **Bước 3** và **Bước 7** (thêm) khác bản BTC; Bước 4 (xuất ONNX, kiểm tra, đóng gói) **giữ nguyên tuyệt đối** (script tự kiểm tra). Sửa code ở script rồi chạy lại, không sửa tay file `.ipynb`.
+- Mỗi lượt chỉ sửa ô tham số: `RUN_NAME`, `DATASET_PATH`, `PRESET` (`smoke` / `ablation` / `final`), `EXTRA_TRAIN_ARGS`; khi cần: `EPOCHS_OVERRIDE`, `INIT_WEIGHTS` (fine-tune từ `best.pt` cũ), `RESUME`.
+- `TEAM_ID = 71`; `TRAIN_IMGSZ = 640`; `MODEL_SIZE = "n"` (có `assert`).
+- Kaggle: bật GPU và **Internet** (Bước 0 cài đúng phiên bản ghim; `onnxruntime==1.32.0` cần Python ≥ 3.11 nên không chạy được trên máy Python 3.10). Output tự nằm trong `/kaggle/working/{RUN_NAME}`; Colab ghi vào Drive `MyDrive/t66/runs/{RUN_NAME}`.
+- Mỗi lượt chạy lưu: `best.pt`, `last.pt` (cập nhật mỗi epoch, để `RESUME`), `submission.zip`, `run_report.json`, `report/` (ảnh lỗi Bước 5), `train/` (biểu đồ), `boundary_iou.json`, `experiment_log_line.md`.
 
 ## 2. Ngân sách thời gian huấn luyện
 
