@@ -18,6 +18,7 @@ Các tầng kiểm tra (mức lỗi/cảnh báo của từng mã phụ thuộc p
 
 Kết quả nằm gọn trong <data>/qa/ (không lẫn với images/, labels/):
   qa/report.json   báo cáo đầy đủ (commit tools, ngưỡng, số liệu từng split, các mã kiểm tra)
+  qa/flags.json    mọi cờ theo từng ảnh (mã, mức, dòng nhãn) cho tools/viewer
   qa/sample.csv    mẫu người xem: CÔNG SỨC CỦA NGƯỜI CHẤM, sao lưu trước khi xóa / chuyển đổi lại thư mục dataset
   qa/preview/      ảnh mẫu đã vẽ nhãn (--render)
   qa/audit/        kết quả label_audit.py (L6)
@@ -141,11 +142,13 @@ REPEAT_RE = re.compile(r"_r\d+$")
 class Issues:
     def __init__(self):
         self.items = defaultdict(list)       # mã -> danh sách mục (chuỗi)
+        self.keys = defaultdict(list)        # mã -> ảnh ứng với từng mục (song song với items; None = cả bộ)
         self.by_image = defaultdict(set)     # "split/stem" -> các mã gặp ở ảnh đó
 
     def add(self, code, item, key=None):
         assert code in CHECKS, code
         self.items[code].append(item)
+        self.keys[code].append(key)
         if key is not None:
             self.by_image[key].add(code)
 
@@ -733,12 +736,17 @@ def run(args):
 def finish(root, profile, args, expect, th, levels, issues, split_stats, converter, audit):
     waivers = expect.get("waivers") or []
     checks, n_err, n_warn = {}, 0, 0
+    flags = defaultdict(list)   # ảnh -> [mã, mức, mục]: đầy đủ (report.json chỉ giữ 50 ví dụ/mã), cho viewer
     for code, items in issues.items.items():
         lvl = levels[code]
         if lvl == O:
             continue
         waived = [it for it in items if any(wv["check"] == code and fnmatch.fnmatch(it, wv["item"]) for wv in waivers)]
-        active = [it for it in items if it not in set(waived)]
+        waived_set = set(waived)
+        active = [it for it in items if it not in waived_set]
+        for it, key in zip(items, issues.keys[code]):
+            if key is not None:
+                flags[key].append([code, "waived" if it in waived_set else lvl, it])
         checks[code] = {"level": lvl, "layer": CHECKS[code][0], "message": CHECKS[code][1], "count": len(active),
                         "waived": len(waived), "examples": active[:50]}
         n_err += len(active) if lvl == E else 0
@@ -760,6 +768,7 @@ def finish(root, profile, args, expect, th, levels, issues, split_stats, convert
     }
     text = json.dumps(report, indent=2, ensure_ascii=False)
     (qa_dir(root) / "report.json").write_text(text, encoding="utf-8")
+    (qa_dir(root) / "flags.json").write_text(json.dumps(flags, ensure_ascii=False), encoding="utf-8")
     if args.archive:
         arch = Path(args.archive)
         arch.mkdir(parents=True, exist_ok=True)

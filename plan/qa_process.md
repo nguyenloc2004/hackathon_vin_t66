@@ -138,7 +138,7 @@ Lần chạy đầu tạo `qa/sample.csv`. Mẫu có 30 ảnh (gold val: 40) chi
 | `rare` | 10 | Ảnh có Bus, Other vehicle, Bicycle, Cyclist hoặc Motorcyclist: nơi converter hay sai nhất |
 | `random` | 10 | Ước lượng tỉ lệ lỗi chung của nguồn |
 
-**Cách chấm** (mở `qa/preview/` cạnh file CSV; Excel mở được vì file có BOM):
+**Cách chấm.** Cách nhanh nhất là dùng viewer: `python tools/viewer/server.py --data <dataset>`, lọc "Mẫu người xem: chưa chấm", chấm bằng phím `O` / `B`, kết quả lưu thẳng vào `qa/sample.csv` ([`tools/README.md`](../tools/README.md), mục viewer). Viewer còn tô viền các vật bị cờ, nên kiểm tra cảnh báo nhanh hơn. Cách thủ công: mở `qa/preview/` cạnh file CSV (Excel mở được vì file có BOM).
 
 1. Mỗi ảnh, đối chiếu với checklist ở [`labeling_sop.md`](labeling_sop.md) §5.
 2. Điền `verdict`: `ok` nếu ảnh không có lỗi **đáng kể**; `bad` nếu có ít nhất một lỗi làm sai bài học của mô hình.
