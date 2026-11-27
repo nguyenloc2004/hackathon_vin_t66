@@ -78,7 +78,7 @@
   <select id="dsSel"></select>
   <button class="btn" id="refresh" title="Đọc lại dữ liệu và kết quả QA từ đĩa">↻ Tải lại</button>
   <span class="badge hidden" id="qaBadge" title="Bấm để xem các mã kiểm tra"></span>
-  <span class="muted" style="margin-left:auto;white-space:nowrap">Lăn chuột: zoom · Kéo: di chuyển · Double-click: vừa khung · <kbd>←</kbd><kbd>→</kbd> ảnh · <kbd>O</kbd>/<kbd>B</kbd> chấm · <kbd>N</kbd> mẫu chưa chấm kế tiếp</span>
+  <span class="muted" style="margin-left:auto;white-space:nowrap">Lăn chuột: zoom · Kéo: di chuyển · Double-click: vừa khung · <kbd>←</kbd><kbd>→</kbd> ảnh · <kbd>O</kbd>/<kbd>B</kbd> chấm · <kbd>N</kbd> mẫu chưa chấm · <kbd>H</kbd> ảnh gốc</span>
   <div id="qaPanel" class="hidden"></div>
 </header>
 
@@ -103,7 +103,9 @@
 
   <div class="center">
     <div class="toolbar">
+      <label title="Ẩn mọi lớp phủ để nhìn rõ ảnh gốc (phím H)"><input type="checkbox" id="tRaw"> <b>Ảnh gốc</b> <kbd>H</kbd></label>
       <label><input type="checkbox" id="tFill" checked> Tô mask</label>
+      <label><input type="checkbox" id="tStroke" checked> Viền mask</label>
       <label><input type="checkbox" id="tText" checked> Tên lớp</label>
       <label><input type="checkbox" id="tFlag" checked> Viền vật bị cờ QA</label>
       <label><input type="checkbox" id="tOnlyFlag"> Chỉ vật bị cờ</label>
@@ -373,6 +375,7 @@ function draw() {
   if (!LAB) return;
   ctx.setTransform(zd.k, 0, 0, zd.k, 0, 0);
   if (img.complete && img.naturalWidth) ctx.drawImage(img, 0, 0, W, H);
+  if ($('tRaw').checked) return;   // chế độ ảnh gốc: không vẽ gì đè lên ảnh
   U = (W / (parseFloat(cv.style.width) || W)) / zd.s;   // nét có độ dày cố định trên màn hình
   const alpha = $('tAlpha').value / 100, dim = selected >= 0, fill = $('tFill').checked;
   for (const s of shapes) {
@@ -380,7 +383,7 @@ function draw() {
     const col = META.colors[s.l.c] || '#ccc', on = s.l.i === selected;
     if (fill) { ctx.globalAlpha = dim && !on ? alpha * 0.25 : on ? Math.min(1, alpha + 0.25) : alpha; ctx.fillStyle = col; ctx.fill(s.path); }
     ctx.globalAlpha = dim && !on ? 0.35 : 1;
-    ctx.strokeStyle = col; ctx.lineWidth = (on ? 3 : 1.5) * U; ctx.stroke(s.path);
+    if ($('tStroke').checked || on) { ctx.strokeStyle = col; ctx.lineWidth = (on ? 3 : 1.5) * U; ctx.stroke(s.path); }
     if ($('tFlag').checked && s.lvl && s.lvl !== 'waived') {
       ctx.setLineDash([6 * U, 4 * U]); ctx.strokeStyle = s.lvl === 'error' ? '#ff5c5c' : '#ffb020'; ctx.lineWidth = 2.5 * U; ctx.stroke(s.path); ctx.setLineDash([]);
     }
@@ -409,7 +412,14 @@ function tag(text, x, y, color, outline) {
   else { ctx.fillStyle = color; ctx.fillRect(x, ty, w, 16 * U); ctx.fillStyle = '#000'; }
   ctx.fillText(text, x + 4 * U, ty + 12 * U);
 }
-['tFill', 'tText', 'tFlag', 'tOnlyFlag', 'tVert', 'tPred', 'tAlpha'].forEach(id => $(id).oninput = draw);
+['tRaw', 'tFill', 'tStroke', 'tText', 'tFlag', 'tOnlyFlag', 'tVert', 'tPred', 'tAlpha'].forEach(id => $(id).oninput = draw);
+// nhớ lựa chọn hiển thị giữa các lần mở viewer
+const PREFS = ['tFill', 'tStroke', 'tText', 'tFlag', 'tVert', 'tAlpha'];
+try { const pr = JSON.parse(localStorage.getItem('rtv.prefs') || '{}');
+      PREFS.forEach(id => { if (id in pr) { if ($(id).type === 'checkbox') $(id).checked = pr[id]; else $(id).value = pr[id]; } }); } catch (e) {}
+PREFS.forEach(id => $(id).addEventListener('input', () => {
+  try { localStorage.setItem('rtv.prefs', JSON.stringify(Object.fromEntries(PREFS.map(k => [k, $(k).type === 'checkbox' ? $(k).checked : $(k).value])))); } catch (e) {}
+}));
 
 function hit(e) {
   const [ix, iy] = canvasXY(e, cv), x = ix * zd.k, y = iy * zd.k;
@@ -502,9 +512,11 @@ function nextTodo() {
 $('prev').onclick = () => show(cur - 1); $('next').onclick = () => show(cur + 1);
 document.addEventListener('keydown', (e) => {
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.ctrlKey || e.metaKey) return;
   if (e.key === 'ArrowRight') show(cur + 1);
   else if (e.key === 'ArrowLeft') show(cur - 1);
   else if (e.key === '0') zd.reset();
+  else if (e.key === 'h' || e.key === 'H') { $('tRaw').checked = !$('tRaw').checked; draw(); }
   else if (e.key === 'o' || e.key === 'O') { if (LAB?.sample) saveVerdict('ok').then(nextTodo); }
   else if (e.key === 'b' || e.key === 'B') { if (LAB?.sample) { $('smType').focus(); if ($('smType').value) saveVerdict('bad'); } }
   else if (e.key === 'n' || e.key === 'N') nextTodo();

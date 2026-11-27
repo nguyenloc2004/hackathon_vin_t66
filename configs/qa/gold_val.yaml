@@ -4,4 +4,4 @@ classes: {}                    # mặc định mỗi lớp target 15 instance (l
 thresholds:
   min_night_frac: 0.15         # mục tiêu 20% ảnh đêm
   max_sample_error: 0.05       # gold val là thước đo: gần như không được có lỗi
-  sample_random: 20
+  sample_random: 40           # gold val ~150 ảnh: chấm nhiều hơn

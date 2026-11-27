@@ -177,6 +177,35 @@ try:
     run(["--data", str(ok), "--resample"])                       # bản đã chấm được giữ lại, không bị ghi đè
     assert len(list((ok / "qa").glob("sample.*.csv"))) == 1
 
+    # ---------------------------------------------------------------- 5c) mỗi mã cờ <= sample_per_flag ảnh; bổ sung mẫu giữ verdict
+    big = tmp / "big"
+    for i in range(40):
+        lines = [line(i % 11, rect(100, 100, 300, 250))]
+        if i < 15:
+            lines.append(line(9, rect(400, 10, 404, 14)))          # 15 ảnh có small_instance
+        put(big, "", f"b{i:02d}", noise_img(), lines)
+    exp_small = tmp / "small.yaml"
+    exp_small.write_text("thresholds: {sample_random: 5, sample_rare: 0, sample_flagged: 10, sample_per_flag: 3}\n",
+                         encoding="utf-8")
+    r = run(["--data", str(big), "--no-hash", "--expect", str(exp_small)])
+    with open(big / "qa" / "sample.csv", newline="", encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    reasons = [x["reason"] for x in rows]
+    print("5c:", r["human_audit"]["by_group"])
+    assert reasons.count("flag:small_instance") == 3 and reasons.count("random") == 5
+    for x in rows:
+        x["verdict"] = "ok"
+    with open(big / "qa" / "sample.csv", "w", newline="", encoding="utf-8-sig") as fh:
+        wr = csv.DictWriter(fh, fieldnames=Q.SAMPLE_COLUMNS)
+        wr.writeheader()
+        wr.writerows(rows)
+    exp_small.write_text("thresholds: {sample_random: 12, sample_rare: 0, sample_flagged: 10, sample_per_flag: 3}\n",
+                         encoding="utf-8")
+    r = run(["--data", str(big), "--no-hash", "--expect", str(exp_small)])
+    a = r["human_audit"]
+    print("5d:", a["sample_size"], a["ok"], a["pending"])
+    assert a["sample_size"] == len(rows) + 7 and a["ok"] == len(rows) and a["pending"] == 7
+
     # ---------------------------------------------------------------- 6) label_audit: so khớp nhãn với dự đoán
     args = SimpleNamespace(conf_low=0.25, conf_miss=0.6, conf_cls=0.5, match_iou=0.5, good_iou=0.7, max_covered=0.2,
                            spurious=True)

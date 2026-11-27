@@ -17,7 +17,7 @@
 
 Chép dòng `Dòng cho experiment_log.md` mà `qa_check.py` in ra; chỉ `PASS` mới được vào recipe / lên Kaggle. Cột miễn trừ: liệt kê mã đã miễn trừ và lý do.
 
-| Dữ liệu | Người phụ trách | Số ảnh | Lỗi / cảnh báo | Mẫu người xem (lỗi / 30) | Kết luận (commit) | Miễn trừ |
+| Dữ liệu | Người phụ trách | Số ảnh | Lỗi / cảnh báo | Mẫu người xem (bad / đã chấm) | Kết luận (commit) | Miễn trừ |
 |---|---|---|---|---|---|---|
 | Vistas v2 | Thắng | | | | | |
 | IDD | Long | 5.006 (54.367 inst) | `qa_check` bản cũ: 41 chồng > 20%, 0 lỗi format · bản mới: 0 lỗi / 1.177 cảnh báo (chồng nặng là `multipart_overlap`) | Xem tay: đạt (30 mẫu + 20 ảnh rider) | ĐẠT (chấm tay, `qa_check` bản cũ) | Chồng > 20%: chấp nhận (sản phẩm phụ polygon nhiều mảnh). Lưu ý `reject_frac`: loại 1.987 ảnh `unmatched_rider` (28%) |
