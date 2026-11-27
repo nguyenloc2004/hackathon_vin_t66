@@ -13,15 +13,25 @@
 | G4 Nộp cuối | 09:30 28/11 | ☐ | |
 | G5 Chọn 2 bài | 10:15 28/11 | ☐ | |
 
-## Cổng chất lượng từng nguồn
+## Cổng chất lượng (`qa_check.py`, [`qa_process.md`](qa_process.md))
 
-| Nguồn | Người phụ trách | Số ảnh | Lỗi `qa_check` | Xem 30 ảnh mẫu | Kết luận |
-|---|---|---|---|---|---|
-| Vistas v2 | Thắng | | | | ☐ ĐẠT |
-| IDD | Long | 5.006 (54.367 inst) | 41 chồng nhau >20% (chấp nhận), 0 lỗi format | Đạt (30 mẫu + 20 rider) | ☑ ĐẠT |
-| COCO | Long | | | | ☐ ĐẠT |
-| Việt Nam nháp | Đạt | | | | ☐ ĐẠT |
-| Việt Nam đã duyệt | Bình Anh | | | | ☐ ĐẠT |
+Chép dòng `Dòng cho experiment_log.md` mà `qa_check.py` in ra; chỉ `PASS` mới được vào recipe / lên Kaggle. Cột miễn trừ: liệt kê mã đã miễn trừ và lý do.
+
+| Dữ liệu | Người phụ trách | Số ảnh | Lỗi / cảnh báo | Mẫu người xem (bad / đã chấm) | Kết luận (commit) | Miễn trừ |
+|---|---|---|---|---|---|---|
+| Vistas v2 | Thắng | | | | | |
+| idd (train+val) | Long | 5676 (61.303 inst) | 0 lỗi / 1292 cảnh báo | 5/68 lỗi (7%) | PASS (commit 4472ac6) | — |
+| COCO → coco_filled | Long | 1.365 (13.179 inst) | Đã khảo sát trên máy, đội chốt bỏ qua không gộp | — | BỎ QUA | — |
+| Việt Nam nháp | Đạt | | | | | |
+| Việt Nam đã duyệt (mỗi lô) | Bình Anh | | | | | |
+| gold_val_v0 / v1 | Bình Anh | | | | | |
+| merged_vN | Lộc | | | | | |
+
+### Mô hình soi nhãn (`label_audit.py`)
+
+| Dữ liệu | Mô hình | Ảnh có nghi vấn | Sót / sai lớp / biên / thừa | Đã duyệt | Tỉ lệ là lỗi thật | Ghi chú |
+|---|---|---|---|---|---|---|
+| | | | | | | |
 
 ## Gold val
 

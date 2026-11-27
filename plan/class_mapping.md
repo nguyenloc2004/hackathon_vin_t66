@@ -91,8 +91,8 @@ Thuật toán chi tiết (điểm ghép, ngưỡng, unit test): [`data_pipeline.
 | Dataset | Link | License | Số ảnh dùng | Ghi chú lọc |
 |---|---|---|---|---|
 | Mapillary Vistas v2 | | CC BY-NC-SA 4.0 (kiểm tra lại) | | |
-| IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.006 (train) | 54.367 instances; loại 1.987 ảnh unmatched_rider; 152 ảnh nền |
-| COCO 2017 | | CC BY 4.0 (annotations) | | |
+| IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.676 (train + val) | 61.303 instances; loại 2.298 ảnh unmatched_rider; 167 ảnh nền; QA `PASS` (5/68 bad = 7%) |
+| COCO 2017 | https://cocodataset.org | CC BY 4.0 (annotations) | 0 (đã khảo sát 1.365 ảnh, chốt bỏ) | Thiếu Other vehicle & Sign (chỉ có 94 stop sign), lệch góc máy dashcam |
 | Cityscapes | | (kiểm tra lại) | | |
 | Roboflow … | | | | |
 | Ảnh Việt Nam từ video YouTube | xem `vn_sources.csv` | theo từng video (ưu tiên CC) | | số video, số kênh |
