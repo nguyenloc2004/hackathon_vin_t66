@@ -8,6 +8,13 @@ Lưu ý: val này là ảnh nước ngoài (Vistas/IDD), chỉ để thử pipel
 build_dataset.py với val = gold val. Ảnh IDD lấy từ video nên có thể có khung gần giống nhau giữa train và val: Bước 2 của notebook
 (REMOVE_LEAKAGE_FROM_TRAIN = True) tự bỏ các ảnh train gần trùng val.
 
+Ảnh cắt từ video (ví dụ vn_<videoID>_001.jpg): dùng --group-val để val lấy NGUYÊN video, không để khung hình của cùng một
+video nằm ở cả train và val (nếu không val sẽ ảo vì gần trùng train). Nhóm = tên ảnh bỏ đuôi _số. Trong nhiều cách chọn video
+ngẫu nhiên theo seed, giữ cách có tỉ lệ val của từng lớp gần đều nhất, để lớp hiếm (Cyclist, Other vehicle) vẫn có mặt trong val.
+
+    python tools/split_trial.py --sources vn=E:/data/vn_sam3_v2 --group-val vn --val-per-source 500 \
+        --train vn --name vn_v2_split --out E:/data/datasets
+
 Ví dụ (A1 = Vistas + IDD, A0 = chỉ Vistas; cùng --sources và --val-per-source thì cùng val):
     python tools/split_trial.py --sources vistas=E:/data/vistas_yolo.zip idd=E:/data/idd_yolo_train.zip \
         --val-per-source 250 --train vistas idd --name trial_a1_vistas_idd --out E:/data/datasets
@@ -20,6 +27,7 @@ import argparse
 import hashlib
 import json
 import random
+import re
 import zipfile
 from collections import Counter
 from pathlib import Path, PurePosixPath
@@ -67,6 +75,37 @@ def class_counts(text):
     return Counter(int(ln.split()[0]) for ln in text.splitlines() if ln.strip())
 
 
+def group_of(img):
+    return re.sub(r"_\d+$", "", PurePosixPath(img).stem)
+
+
+def pick_val_groups(src, target, rng, tries=3000):
+    """Chọn các video làm val: đủ khoảng `target` ảnh, tỉ lệ val của mỗi lớp càng gần tỉ lệ ảnh val càng tốt."""
+    groups = {}
+    for i, (img, lab) in enumerate(src.items):
+        groups.setdefault(group_of(img), []).append(i)
+    per_group = {g: sum((class_counts(src.read(src.items[i][1]).decode("utf-8")) for i in idx if src.items[i][1]), Counter())
+                 for g, idx in groups.items()}
+    total = sum(per_group.values(), Counter())
+    names = sorted(groups)
+    best = None
+    for _ in range(tries):
+        rng.shuffle(names)
+        chosen, n = [], 0
+        for g in names:
+            if n >= target:
+                break
+            chosen.append(g)
+            n += len(groups[g])
+        frac = n / len(src.items)
+        val = sum((per_group[g] for g in chosen), Counter())
+        cost = sum(abs(val[c] / total[c] - frac) for c in total if total[c]) + abs(n - target) / target
+        if best is None or cost < best[0]:
+            best = (cost, sorted(chosen))
+    chosen = best[1]
+    return sorted(i for g in chosen for i in groups[g]), chosen, len(groups)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sources", nargs="+", required=True, help="ten=đường_dẫn_zip_hoặc_thư_mục, ví dụ vistas=E:/x/vistas_yolo.zip")
@@ -75,6 +114,7 @@ def main():
     ap.add_argument("--train-max", nargs="*", default=[], help="giới hạn ảnh train theo nguồn, ví dụ vistas=3000 idd=3000")
     ap.add_argument("--name", required=True, help="tên bộ dữ liệu, ví dụ trial_a1_vistas_idd")
     ap.add_argument("--out", required=True, help="thư mục ghi kết quả")
+    ap.add_argument("--group-val", nargs="*", default=[], help="nguồn lấy val theo NGUYÊN video (ảnh tên <video>_<số>)")
     ap.add_argument("--seed", type=int, default=71)
     args = ap.parse_args()
 
@@ -99,7 +139,14 @@ def main():
         idx = list(range(len(src.items)))
         rng.shuffle(idx)
         k = min(args.val_per_source, max(1, len(idx) // 5))   # val tối đa 20% của nguồn, ít nhất 1 ảnh
-        val_idx, rest = sorted(idx[:k]), idx[k:]
+        if name in args.group_val:
+            val_idx, vids, n_vids = pick_val_groups(src, k, rng)
+            vset = set(val_idx)
+            rest = [i for i in idx if i not in vset]
+            manifest_src.setdefault(name, {})["val_videos"] = vids
+            print(f"  {name}: val = {len(vids)}/{n_vids} video: {', '.join(vids)}")
+        else:
+            val_idx, rest = sorted(idx[:k]), idx[k:]
         plan += [("val", name, i) for i in val_idx]
         n_train = 0
         if name in args.train:
@@ -107,7 +154,7 @@ def main():
                 rest = random.Random(f"{args.seed}-{name}-train").sample(rest, train_max[name])
             plan += [("train", name, i) for i in sorted(rest)]
             n_train = len(rest)
-        manifest_src[name] = {"path": str(src.path), "images": len(src.items), "val": len(val_idx), "train": n_train}
+        manifest_src.setdefault(name, {}).update(path=str(src.path), images=len(src.items), val=len(val_idx), train=n_train)
         print(f"  {name:<8} {len(src.items):>6} ảnh -> val {len(val_idx):>4}, train {n_train:>5}")
 
     totals, n_img, seen = {"train": Counter(), "val": Counter()}, Counter(), set()
