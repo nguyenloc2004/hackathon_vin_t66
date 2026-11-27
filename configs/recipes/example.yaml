@@ -1,0 +1,25 @@
+# Recipe mẫu: copy thành merged_vN.yaml, sửa đường dẫn rồi chạy
+#   python tools/build_dataset.py --recipe configs/recipes/merged_vN.yaml
+name: merged_v1                 # tên phiên bản, không trùng phiên bản cũ
+seed: 71                        # seed của đội
+out_dir: D:/data/datasets       # nơi ghi thư mục + zip + manifest
+
+sources:                        # tên nguồn -> thư mục đã chuyển đổi (có images/ và labels/)
+  vistas: D:/data/converted/vistas
+  idd: D:/data/converted/idd
+  coco_filled: D:/data/converted/coco_filled
+  vn_reviewed: D:/data/converted/vn_reviewed
+  vn_pseudo: D:/data/converted/vn_pseudo_confident
+  gold_val: D:/data/gold_val/gold_val_v1
+
+val:
+  source: gold_val              # luôn dùng gold val, không để notebook chia ngẫu nhiên
+
+train:
+  - {source: vistas,      max_images: 4000, select: priority}   # priority = ưu tiên ảnh có lớp hiếm
+  - {source: idd,         max_images: 3000, select: priority}
+  - {source: coco_filled, max_images: 1000, select: random}
+  - {source: vn_reviewed, repeat: 2}                            # nhân đôi để tăng trọng số ảnh Việt Nam
+  - {source: vn_pseudo,   max_images: 1500, select: random}
+
+exclude_near_duplicates_of_val: 4   # bỏ ảnh train gần trùng ảnh val (Hamming pHash <= 4); 0 = tắt
