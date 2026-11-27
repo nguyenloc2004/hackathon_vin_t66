@@ -18,7 +18,7 @@
 | Nguồn | Người phụ trách | Số ảnh | Lỗi `qa_check` | Xem 30 ảnh mẫu | Kết luận |
 |---|---|---|---|---|---|
 | Vistas v2 | Thắng | | | | ☐ ĐẠT |
-| IDD | Long | | | | ☐ ĐẠT |
+| IDD | Long | 5.006 (54.367 inst) | 41 chồng nhau >20% (chấp nhận), 0 lỗi format | Đạt (30 mẫu + 20 rider) | ☑ ĐẠT |
 | COCO | Long | | | | ☐ ĐẠT |
 | Việt Nam nháp | Đạt | | | | ☐ ĐẠT |
 | Việt Nam đã duyệt | Bình Anh | | | | ☐ ĐẠT |

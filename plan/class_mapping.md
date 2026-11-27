@@ -91,7 +91,7 @@ Thuật toán chi tiết (điểm ghép, ngưỡng, unit test): [`data_pipeline.
 | Dataset | Link | License | Số ảnh dùng | Ghi chú lọc |
 |---|---|---|---|---|
 | Mapillary Vistas v2 | | CC BY-NC-SA 4.0 (kiểm tra lại) | | |
-| IDD | | (kiểm tra lại) | | |
+| IDD | https://idd.insaan.iiit.ac.in | (kiểm tra lại) | 5.006 (train) | 54.367 instances; loại 1.987 ảnh unmatched_rider; 152 ảnh nền |
 | COCO 2017 | | CC BY 4.0 (annotations) | | |
 | Cityscapes | | (kiểm tra lại) | | |
 | Roboflow … | | | | |
