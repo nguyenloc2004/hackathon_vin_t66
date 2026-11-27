@@ -285,6 +285,85 @@ print("\nDòng cho plan/experiment_log.md:\n" + line)
 print(f"\nThư mục lượt chạy {OUT_DIR}:", sorted(p.name for p in OUT_DIR.iterdir()))'''
 
 
+CHARTS_MD = r'''
+## Bước 8 (đội 71). Biểu đồ phân tích tập val
+
+1. **Phân bố lớp train và val** (% instance của mỗi tập): val có giống train không. Một lớp chiếm tỉ lệ rất khác giữa hai tập thì điểm val lệch.
+2. **Mask AP từng lớp trên val** (từ Bước 5, cách chấm của cuộc thi), xếp từ thấp lên cao, có đường trung bình = điểm của bài. Lớp nằm dưới đường là việc cho vòng dữ liệu sau.
+3. Ảnh Ultralytics vẽ sẵn khi train: **ma trận nhầm lẫn** (chuẩn hóa), **đường Precision–Recall của mask**, **đường loss / mAP theo epoch**, và một batch val (nhãn | dự đoán).
+
+Mọi ảnh được lưu vào `{DRIVE_OUTPUT_DIR}/charts/` để dùng cho slide.
+'''
+
+CHARTS_CELL = r'''import matplotlib.pyplot as plt
+
+CHART_DIR = Path(DRIVE_OUTPUT_DIR) / "charts"
+CHART_DIR.mkdir(parents=True, exist_ok=True)
+SERIES_1, SERIES_2 = "#257de0", "#f47230"          # xanh = train / AP, cam = val (bảng màu chuẩn, thứ tự cố định)
+TEXT, TEXT_2, GRID = "#191919", "#666666", "#e6e6e6"
+plt.rcParams.update({"font.size": 10, "axes.edgecolor": GRID, "axes.labelcolor": TEXT_2, "xtick.color": TEXT_2,
+                     "ytick.color": TEXT, "axes.spines.top": False, "axes.spines.right": False})
+
+# 1) Phân bố lớp: % instance trong mỗi tập (hai tập khác cỡ nên so tỉ lệ, không so số tuyệt đối)
+pc = REPORT["per_class"]
+tr = np.array([pc[c]["train_instances"] for c in CLASSES], float)
+va = np.array([pc[c]["val_instances"] for c in CLASSES], float)
+tr_pct, va_pct = 100 * tr / max(tr.sum(), 1), 100 * va / max(va.sum(), 1)
+y = np.arange(len(CLASSES))[::-1]
+h = 0.36
+fig, ax = plt.subplots(figsize=(9, 6))
+ax.barh(y + h / 2 + 0.02, tr_pct, height=h, color=SERIES_1, label=f"train ({int(tr.sum()):,} instance)")
+ax.barh(y - h / 2 - 0.02, va_pct, height=h, color=SERIES_2, label=f"val ({int(va.sum()):,} instance)")
+for yi, a, b, na, nb in zip(y, tr_pct, va_pct, tr, va):
+    ax.text(a + 0.3, yi + h / 2 + 0.02, f"{a:.1f}%", va="center", fontsize=8, color=TEXT_2)
+    ax.text(b + 0.3, yi - h / 2 - 0.02, f"{b:.1f}%  ({int(nb)})", va="center", fontsize=8, color=TEXT_2)
+ax.set_yticks(y, CLASSES)
+ax.set_xlabel("% số instance của tập")
+ax.xaxis.grid(True, color=GRID, linewidth=0.8)
+ax.set_axisbelow(True)
+ax.legend(frameon=False, loc="lower right")
+ax.set_title("Phân bố lớp: train và val (số trong ngoặc = số instance val)", loc="left", color=TEXT, fontsize=11)
+fig.tight_layout()
+fig.savefig(CHART_DIR / "class_distribution.png", dpi=150)
+plt.show()
+
+# 2) Mask AP từng lớp trên val (Bước 5), xếp tăng dần, đường trung bình = điểm của bài
+ap = VAL_RESULT["per_class_ap"]
+items = sorted(ap.items(), key=lambda kv: kv[1])
+fig, ax = plt.subplots(figsize=(9, 5.5))
+ax.barh(range(len(items)), [100 * v for _, v in items], height=0.6, color=SERIES_1)
+for i, (k, v) in enumerate(items):
+    ax.text(100 * v + 0.5, i, f"{100 * v:.1f}", va="center", fontsize=8, color=TEXT_2)
+mean = 100 * float(np.mean(list(ap.values()))) if ap else 0.0
+ax.axvline(mean, color=TEXT_2, linewidth=1, linestyle=(0, (4, 3)))
+ax.set_ylim(-1.1, len(items) - 0.5)
+ax.text(mean + 0.5, -0.85, f"trung bình {mean:.1f} = điểm val", fontsize=8, color=TEXT_2, va="center")
+ax.set_yticks(range(len(items)), [k for k, _ in items])
+no_gt = [c for c in CLASSES if c not in ap]
+ax.set_xlabel("mask AP@[.5:.95] × 100" + (f"\nKhông có nhãn trong val (không tính vào điểm): {', '.join(no_gt)}" if no_gt else ""))
+ax.set_xlim(0, max(100 * max(ap.values(), default=0) + 8, mean + 15))
+ax.xaxis.grid(True, color=GRID, linewidth=0.8)
+ax.set_axisbelow(True)
+ax.set_title(f"Mask AP từng lớp trên val ({VAL_RESULT['n_images']} ảnh) — {RUN_NAME}", loc="left", color=TEXT, fontsize=11)
+fig.tight_layout()
+fig.savefig(CHART_DIR / "per_class_ap.png", dpi=150)
+plt.show()
+
+# 3) Ảnh Ultralytics vẽ sẵn trong thư mục train
+SAVE_DIR = Path(model.trainer.save_dir)
+for name, title in (("confusion_matrix_normalized.png", "Ma trận nhầm lẫn (chuẩn hóa theo nhãn thật)"),
+                    ("MaskPR_curve.png", "Đường Precision–Recall của mask"),
+                    ("results.png", "Loss và mAP theo epoch"),
+                    ("val_batch0_labels.jpg", "Một batch val: NHÃN"),
+                    ("val_batch0_pred.jpg", "Một batch val: DỰ ĐOÁN")):
+    p = SAVE_DIR / name
+    if p.exists():
+        shutil.copyfile(p, CHART_DIR / name)
+        print(f"\n{title}  ({name})")
+        show_image(p)
+print(f"\nĐã lưu biểu đồ vào {CHART_DIR}:", sorted(q.name for q in CHART_DIR.iterdir()))'''
+
+
 def src_lines(text):
     text = text.strip("\n")
     lines = text.split("\n")
@@ -317,7 +396,7 @@ def main():
         assert i in changed or a["source"] == b["source"], f"ô {i} bị đổi ngoài ý muốn"
 
     cells.insert(0, md_cell(INTRO_MD))
-    cells += [md_cell(STEP7_MD), code_cell(STEP7_CELL)]
+    cells += [md_cell(STEP7_MD), code_cell(STEP7_CELL), md_cell(CHARTS_MD), code_cell(CHARTS_CELL)]
     for c in cells:
         if c["cell_type"] == "code":
             c["outputs"], c["execution_count"] = [], None
