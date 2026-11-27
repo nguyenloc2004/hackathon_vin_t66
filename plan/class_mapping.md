@@ -15,6 +15,8 @@
 
 ## Quy tắc ghép rider + xe (dùng chung cho mọi dataset)
 
+Thuật toán chi tiết (điểm ghép, ngưỡng, unit test): [`data_pipeline.md`](data_pipeline.md) §3.3.
+
 1. Với mỗi rider, tìm motorcycle/bicycle có **diện tích chồng lấn bbox lớn nhất** (hoặc mask kề nhau trong khoảng vài pixel).
 2. Có xe: **hợp mask** rider + xe thành `Motorcyclist` (5) hoặc `Cyclist` (7). Một xe có thể có nhiều rider: gộp tất cả vào cùng instance.
 3. Xe không có rider: `Motorcycle` (4) hoặc `Bicycle` (6).
@@ -93,4 +95,5 @@
 | COCO 2017 | | CC BY 4.0 (annotations) | | |
 | Cityscapes | | (kiểm tra lại) | | |
 | Roboflow … | | | | |
-| Ảnh Việt Nam tự thu | | | | nguồn video |
+| Ảnh Việt Nam từ video YouTube | xem `vn_sources.csv` | theo từng video (ưu tiên CC) | | số video, số kênh |
+| Bộ ảnh Việt Nam công khai (Kaggle/Roboflow/HF) | | | | chỉ dùng ảnh, nhãn làm lại |
